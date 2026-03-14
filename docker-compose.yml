@@ -1,0 +1,88 @@
+services:
+  # ── Qdrant — Vector Database ───────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: grc-qdrant
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── HF TEI — Embedding Model (bge-large-en-v1.5) ──────
+  embedder:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+    container_name: grc-embedder
+    command: ["--model-id", "BAAI/bge-large-en-v1.5", "--port", "80"]
+    ports:
+      - "8081:80"
+    volumes:
+      - embedder_cache:/data
+    environment:
+      - HF_HUB_ENABLE_HF_TRANSFER=0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    restart: unless-stopped
+
+  # ── HF TEI — Reranker Model (bge-reranker-v2-m3) ──────
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+    container_name: grc-reranker
+    command: ["--model-id", "BAAI/bge-reranker-v2-m3", "--port", "80"]
+    ports:
+      - "8082:80"
+    volumes:
+      - reranker_cache:/data
+    environment:
+      - HF_HUB_ENABLE_HF_TRANSFER=0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    restart: unless-stopped
+
+  # ── API Gateway — Health aggregator ────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: src/gateway/Dockerfile
+    container_name: grc-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - EMBEDDER_URL=http://embedder:80
+      - RERANKER_URL=http://reranker:80
+      - LOG_LEVEL=info
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      embedder:
+        condition: service_healthy
+      reranker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  embedder_cache:
+  reranker_cache:
