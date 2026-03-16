@@ -1,0 +1,252 @@
+{
+  "iso_27001": {
+    "display_name": "ISO/IEC 27001:2022",
+    "version": "2022",
+    "description": "Information security management systems — Requirements"
+  },
+  "nist_800_53": {
+    "display_name": "NIST SP 800-53 Rev. 5",
+    "version": "Rev. 5",
+    "description": "Security and Privacy Controls for Information Systems and Organizations"
+  },
+  "pci_dss_v4": {
+    "display_name": "PCI DSS v4.0",
+    "version": "4.0",
+    "description": "Payment Card Industry Data Security Standard"
+  },
+  "nist_csf_v2": {
+    "display_name": "NIST Cybersecurity Framework v2.0",
+    "version": "2.0",
+    "description": "Framework for Improving Critical Infrastructure Cybersecurity"
+  },
+  "soc2_tsc": {
+    "display_name": "SOC 2 Trust Services Criteria",
+    "version": "2017 (with 2022 revisions)",
+    "description": "AICPA Trust Services Criteria for Security, Availability, Processing Integrity, Confidentiality, and Privacy"
+  },
+  "gdpr": {
+    "display_name": "EU General Data Protection Regulation",
+    "version": "2016/679",
+    "description": "Regulation on the protection of natural persons with regard to the processing of personal data"
+  },
+  "hipaa": {
+    "display_name": "HIPAA Security Rule",
+    "version": "2013 Omnibus",
+    "description": "Health Insurance Portability and Accountability Act — Security Standards"
+  },
+  "cis_controls_v8": {
+    "display_name": "CIS Controls v8",
+    "version": "8.0",
+    "description": "Center for Internet Security Critical Security Controls"
+  },
+  "iso_22301": {
+    "display_name": "ISO 22301:2019",
+    "version": "2019",
+    "description": "Business continuity management systems — Requirements"
+  },
+  "iso_31000": {
+    "display_name": "ISO 31000:2018",
+    "version": "2018",
+    "description": "Risk management — Guidelines"
+  },
+  "nist_800_171": {
+    "display_name": "NIST SP 800-171 Rev. 3",
+    "version": "Rev. 3",
+    "description": "Protecting Controlled Unclassified Information in Nonfederal Systems"
+  },
+  "mitre_attack": {
+    "display_name": "MITRE ATT&CK Enterprise",
+    "version": "v15",
+    "description": "Adversarial Tactics, Techniques, and Common Knowledge"
+  },
+  "owasp_top10": {
+    "display_name": "OWASP Top 10:2021",
+    "version": "2021",
+    "description": "Top 10 Web Application Security Risks"
+  },
+  "fedramp": {
+    "display_name": "FedRAMP (based on NIST 800-53)",
+    "version": "Rev. 5",
+    "description": "Federal Risk and Authorization Management Program"
+  },
+  "cmmc_v2": {
+    "display_name": "CMMC v2.0",
+    "version": "2.0",
+    "description": "Cybersecurity Maturity Model Certification"
+  },
+  "cobit_2019": {
+    "display_name": "COBIT 2019",
+    "version": "2019",
+    "description": "Control Objectives for Information and Related Technologies"
+  },
+  "itil_v4": {
+    "display_name": "ITIL 4",
+    "version": "4",
+    "description": "IT Infrastructure Library — Service Management"
+  },
+  "iso_27017": {
+    "display_name": "ISO/IEC 27017:2015",
+    "version": "2015",
+    "description": "Code of practice for information security controls based on ISO/IEC 27002 for cloud services"
+  },
+  "iso_27018": {
+    "display_name": "ISO/IEC 27018:2019",
+    "version": "2019",
+    "description": "Code of practice for protection of personally identifiable information (PII) in public clouds"
+  },
+  "iso_27701": {
+    "display_name": "ISO/IEC 27701:2019",
+    "version": "2019",
+    "description": "Privacy information management — Extension to ISO/IEC 27001 and 27002"
+  },
+  "csa_ccm_v4": {
+    "display_name": "CSA Cloud Controls Matrix v4",
+    "version": "4.0",
+    "description": "Cloud Security Alliance Cloud Controls Matrix"
+  },
+  "nerc_cip": {
+    "display_name": "NERC CIP Standards",
+    "version": "v7",
+    "description": "North American Electric Reliability Corporation Critical Infrastructure Protection"
+  },
+  "glba": {
+    "display_name": "GLBA Safeguards Rule",
+    "version": "2021 Revision",
+    "description": "Gramm-Leach-Bliley Act — Financial Privacy and Safeguards"
+  },
+  "sox_it": {
+    "display_name": "SOX IT Controls",
+    "version": "2002",
+    "description": "Sarbanes-Oxley Act — IT General Controls and Application Controls"
+  },
+  "nist_ai_rmf": {
+    "display_name": "NIST AI Risk Management Framework",
+    "version": "1.0",
+    "description": "Artificial Intelligence Risk Management Framework"
+  },
+  "eu_ai_act": {
+    "display_name": "EU AI Act",
+    "version": "2024",
+    "description": "European Union Artificial Intelligence Act"
+  },
+  "dora": {
+    "display_name": "DORA",
+    "version": "2022/2554",
+    "description": "Digital Operational Resilience Act for Financial Entities"
+  },
+  "nis2": {
+    "display_name": "NIS2 Directive",
+    "version": "2022/2555",
+    "description": "EU Directive on measures for a high common level of cybersecurity"
+  },
+  "ccpa_cpra": {
+    "display_name": "CCPA/CPRA",
+    "version": "2023",
+    "description": "California Consumer Privacy Act / California Privacy Rights Act"
+  },
+  "nist_privacy": {
+    "display_name": "NIST Privacy Framework",
+    "version": "1.0",
+    "description": "A Tool for Improving Privacy through Enterprise Risk Management"
+  },
+  "iso_27005": {
+    "display_name": "ISO/IEC 27005:2022",
+    "version": "2022",
+    "description": "Information security risk management — Guidance"
+  },
+  "swift_cscf": {
+    "display_name": "SWIFT Customer Security Programme",
+    "version": "2024",
+    "description": "SWIFT Customer Security Controls Framework"
+  },
+  "enisa_guidelines": {
+    "display_name": "ENISA Cybersecurity Guidelines",
+    "version": "2023",
+    "description": "European Union Agency for Cybersecurity risk management guidelines"
+  },
+  "nydfs_500": {
+    "display_name": "NYDFS 23 NYCRR 500",
+    "version": "2023 Amendment",
+    "description": "New York Department of Financial Services Cybersecurity Regulation"
+  },
+  "iso_20000": {
+    "display_name": "ISO/IEC 20000-1:2018",
+    "version": "2018",
+    "description": "IT service management system requirements"
+  },
+  "tisax": {
+    "display_name": "TISAX (based on VDA ISA)",
+    "version": "6.0",
+    "description": "Trusted Information Security Assessment Exchange — Automotive"
+  },
+  "isa_62443": {
+    "display_name": "ISA/IEC 62443",
+    "version": "2018",
+    "description": "Security for Industrial Automation and Control Systems"
+  },
+  "hitrust_csf": {
+    "display_name": "HITRUST CSF",
+    "version": "v11",
+    "description": "HITRUST Common Security Framework — Healthcare"
+  },
+  "nist_800_82": {
+    "display_name": "NIST SP 800-82 Rev. 3",
+    "version": "Rev. 3",
+    "description": "Guide to Operational Technology (OT) Security"
+  },
+  "cps_234": {
+    "display_name": "APRA CPS 234",
+    "version": "2019",
+    "description": "Australian Prudential Standard on Information Security"
+  },
+  "mas_trmg": {
+    "display_name": "MAS Technology Risk Management Guidelines",
+    "version": "2021",
+    "description": "Monetary Authority of Singapore — Technology Risk Management"
+  },
+  "pdpa_singapore": {
+    "display_name": "Singapore PDPA",
+    "version": "2020 Amendment",
+    "description": "Personal Data Protection Act — Singapore"
+  },
+  "pipeda": {
+    "display_name": "PIPEDA",
+    "version": "2019",
+    "description": "Personal Information Protection and Electronic Documents Act — Canada"
+  },
+  "lgpd": {
+    "display_name": "LGPD (Brazil)",
+    "version": "2020",
+    "description": "Lei Geral de Proteção de Dados Pessoais — Brazil"
+  },
+  "popia": {
+    "display_name": "POPIA (South Africa)",
+    "version": "2020",
+    "description": "Protection of Personal Information Act — South Africa"
+  },
+  "iso_27035": {
+    "display_name": "ISO/IEC 27035:2023",
+    "version": "2023",
+    "description": "Information security incident management"
+  },
+  "iso_27002": {
+    "display_name": "ISO/IEC 27002:2022",
+    "version": "2022",
+    "description": "Information security controls — Code of practice"
+  },
+  "nist_ssdf": {
+    "display_name": "NIST SSDF (SP 800-218)",
+    "version": "1.1",
+    "description": "Secure Software Development Framework"
+  },
+  "asvs": {
+    "display_name": "OWASP ASVS",
+    "version": "4.0.3",
+    "description": "Application Security Verification Standard"
+  },
+  "iso_42001": {
+    "display_name": "ISO/IEC 42001:2023",
+    "version": "2023",
+    "description": "Artificial Intelligence Management System"
+  }
+}

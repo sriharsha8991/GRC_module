@@ -6,30 +6,38 @@ from pathlib import Path
 
 
 class IngestionSettings(BaseSettings):
-    # Infrastructure service URLs
+    # Infrastructure
     qdrant_url: str = "http://localhost:6333"
-    embedder_url: str = "http://localhost:8081"
+    reranker_url: str = "http://localhost:8082"
 
-    # PDF storage (local now, S3 later)
-    storage_backend: str = "local"  # "local" | "s3" (future)
+    # PDF storage
+    storage_backend: str = "local"
     local_pdf_dir: Path = Path("data/pdfs")
 
-    # S3 (future — no-ops for now)
-    s3_bucket: str = ""
-    s3_prefix: str = "grc-pdfs/"
-    aws_region: str = "us-east-1"
-
-    # Chunking
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    # Gemini (google-genai SDK)
+    gemini_api_key: str = ""
+    gemini_parse_model: str = "gemini-2.5-flash"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_window_size: int = 30000
 
     # Embedding
-    embedding_model: str = "BAAI/bge-large-en-v1.5"
-    embedding_dimension: int = 1024
+    embedding_dimension: int = 1536
     embed_batch_size: int = 32
 
+    # Fallback embedder (TEI)
+    tei_embedder_url: str = "http://localhost:8081"
+
+    # Chunking
+    chunk_size: int = 256
+    chunk_overlap: int = 50
+
     # Qdrant
+    collection_name: str = "grc_controls"
     qdrant_distance: str = "Cosine"
+
+    # Retrieval
+    rerank_threshold: float = 0.9
+    retrieval_limit: int = 30
 
     # Cleanup
     delete_pdf_after_ingestion: bool = True

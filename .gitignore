@@ -3,3 +3,4 @@ tests/
 docs/test_docs/
 __pycache__/
 *.pyc   
+.env

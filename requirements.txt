@@ -1,0 +1,19 @@
+# Core
+google-genai>=1.67.0
+qdrant-client>=1.12.0,<1.14.0
+pydantic>=2.12.0
+pydantic-settings>=2.13.0
+
+# PDF extraction
+pymupdf4llm>=1.27.0
+
+# Chunking
+langchain-text-splitters>=1.1.0
+
+# HTTP
+httpx>=0.28.0
+
+# Gateway
+fastapi>=0.135.0
+uvicorn>=0.41.0
+python-multipart>=0.0.6
