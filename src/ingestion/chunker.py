@@ -128,6 +128,7 @@ def chunk_markdown(
     framework_key: str,
     framework_version: str,
     settings: IngestionSettings,
+    source_document: str = "",
 ) -> list[Chunk]:
     """Split framework markdown into embedding-ready chunks.
 
@@ -166,6 +167,7 @@ def chunk_markdown(
         base_meta = {
             "framework": framework_key,
             "framework_version": framework_version,
+            "source_document": source_document,
             **headings,
         }
 

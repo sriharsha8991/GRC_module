@@ -36,8 +36,11 @@ class IngestionSettings(BaseSettings):
     qdrant_distance: str = "Cosine"
 
     # Retrieval
-    rerank_threshold: float = 0.9
-    retrieval_limit: int = 30
+    use_reranker: bool = False
+    rerank_threshold: float = 0.3
+    retrieval_limit: int = 10
+    if use_reranker:
+        retrieval_limit = 30  # Get more candidates if reranking
 
     # Cleanup
     delete_pdf_after_ingestion: bool = True

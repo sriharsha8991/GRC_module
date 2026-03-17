@@ -72,6 +72,7 @@ def ingest_framework(
             framework_key=framework_key,
             framework_version=fw_meta["version"],
             settings=settings,
+            source_document=fw_meta["display_name"],
         )
 
         if not chunks:
