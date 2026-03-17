@@ -22,7 +22,7 @@ from src.retrieval.critic import AdversarialCritic
 from src.retrieval.mapper import ComplianceMapper
 from src.retrieval.models import QueryRequest, QueryResponse, RankedChunk
 from src.retrieval.qdrant_retriever import QdrantRetriever
-from src.retrieval.reranker import Reranker
+from src.retrieval.reranker import get_reranker
 
 logger = logging.getLogger("retrieval.pipeline")
 
@@ -64,7 +64,7 @@ def query_finding(
     reranked_chunks: dict[str, list[RankedChunk]] = {}
 
     if settings.use_reranker:
-        reranker = Reranker(settings)
+        reranker = get_reranker(settings)
         for fw_key, scored in search_results.items():
             ranked = reranker.rerank(
                 query=request.finding_text,

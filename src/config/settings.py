@@ -37,10 +37,13 @@ class IngestionSettings(BaseSettings):
 
     # Retrieval
     use_reranker: bool = False
-    rerank_threshold: float = 0.3
-    retrieval_limit: int = 10
-    if use_reranker:
-        retrieval_limit = 30  # Get more candidates if reranking
+    reranker_backend: str = "tei"  # "tei" (self-hosted cross-encoder) or "jina" (cloud API)
+    rerank_threshold: float = 0.01  # cross-encoder sigmoid scores skew low
+    retrieval_limit: int = 30
+
+    # Jina Reranker (cloud)
+    jina_api_key: str = ""
+    jina_reranker_model: str = "jina-reranker-v2-base-multilingual"
 
     # Cleanup
     delete_pdf_after_ingestion: bool = True
