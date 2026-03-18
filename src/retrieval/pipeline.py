@@ -18,13 +18,32 @@ import time
 
 from src.config.settings import IngestionSettings, get_ingestion_settings
 from src.ingestion.embedder import GeminiEmbedder
+from src.retrieval.cache import RedisCache
 from src.retrieval.critic import AdversarialCritic
 from src.retrieval.mapper import ComplianceMapper
 from src.retrieval.models import QueryRequest, QueryResponse, RankedChunk
+from src.retrieval.normalizer import build_cache_key
 from src.retrieval.qdrant_retriever import QdrantRetriever
 from src.retrieval.reranker import get_reranker
 
 logger = logging.getLogger("retrieval.pipeline")
+
+# ── Lazy Redis singleton ────────────────────────────────
+_cache_instance: RedisCache | None = None
+
+
+def _get_cache(settings: IngestionSettings) -> RedisCache | None:
+    """Return a shared RedisCache, or None if disabled / unreachable."""
+    if not settings.redis_enabled:
+        return None
+    global _cache_instance
+    if _cache_instance is None:
+        _cache_instance = RedisCache(settings)
+        if not _cache_instance.ping():
+            logger.warning("Redis unreachable — caching disabled")
+            _cache_instance = None
+            return None
+    return _cache_instance
 
 
 def query_finding(
@@ -42,6 +61,27 @@ def query_finding(
     """
     settings = settings or get_ingestion_settings()
     start = time.time()
+
+    # ── 0. Cache lookup ─────────────────────────────────
+    cache = _get_cache(settings)
+    cache_key: str | None = None
+    lock_acquired = False
+
+    if cache:
+        cache_key = build_cache_key(
+            request.finding_text, request.target_frameworks, settings,
+        )
+        cached = cache.get(cache_key)
+        if cached is not None:
+            cached.duration_seconds = round(time.time() - start, 4)
+            logger.info("Cache HIT for key ...%s", cache_key[-12:])
+            return cached
+
+        lock_acquired = cache.acquire_lock(cache_key)
+        logger.info(
+            "Cache MISS — lock %s",
+            "acquired" if lock_acquired else "busy (another request caching)",
+        )
 
     threshold = settings.rerank_threshold
 
@@ -122,7 +162,7 @@ def query_finding(
         len(mappings), duration,
     )
 
-    return QueryResponse(
+    response = QueryResponse(
         finding_text=request.finding_text,
         mappings=mappings,
         frameworks_searched=request.target_frameworks,
@@ -130,3 +170,11 @@ def query_finding(
         chunks_after_rerank=total_after_rerank,
         duration_seconds=round(duration, 2),
     )
+
+    # ── 6. Cache write ──────────────────────────────────
+    if cache and cache_key and lock_acquired:
+        cache.set(cache_key, response)
+        cache.release_lock(cache_key)
+        logger.info("Cached response for key ...%s", cache_key[-12:])
+
+    return response

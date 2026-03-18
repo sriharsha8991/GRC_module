@@ -39,7 +39,8 @@ class IngestionSettings(BaseSettings):
     use_reranker: bool = False
     reranker_backend: str = "tei"  # "tei" (self-hosted cross-encoder) or "jina" (cloud API)
     rerank_threshold: float = 0.01  # cross-encoder sigmoid scores skew low
-    retrieval_limit: int = 30
+    retrieval_limit: int = 10
+    
 
     # Jina Reranker (cloud)
     jina_api_key: str = ""
@@ -47,6 +48,16 @@ class IngestionSettings(BaseSettings):
 
     # Cleanup
     delete_pdf_after_ingestion: bool = True
+
+    # Redis cache
+    redis_url: str = "redis://localhost:6379/0"
+    redis_enabled: bool = True
+    redis_socket_timeout: float = 1.0
+    redis_max_memory_mb: int = 512
+    redis_eviction_trigger_pct: int = 80
+    redis_eviction_target_pct: int = 30
+    redis_lock_timeout: int = 30
+    redis_key_prefix: str = "grc"
 
     class Config:
         env_file = ".env"

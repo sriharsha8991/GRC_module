@@ -70,6 +70,7 @@ class QdrantRetriever:
             "Qdrant search: framework=%s, hits=%d (limit=%d)",
             framework_key, len(chunks), limit,
         )
+        logger.info("list of qdrant scores: %s", [round(c.qdrant_score, 2) for c in chunks])
         return chunks
 
     def search_multi(
