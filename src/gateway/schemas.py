@@ -12,6 +12,6 @@ class ServiceHealth(BaseModel):
 
 class HealthResponse(BaseModel):
     gateway: str
+    api: ServiceHealth
     qdrant: ServiceHealth
-    embedder: ServiceHealth
-    reranker: ServiceHealth
+    redis: ServiceHealth

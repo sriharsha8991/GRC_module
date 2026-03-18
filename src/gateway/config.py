@@ -3,9 +3,9 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    api_url: str = "http://localhost:8080"
     qdrant_url: str = "http://localhost:6333"
-    embedder_url: str = "http://localhost:8081"
-    reranker_url: str = "http://localhost:8082"
+    redis_url: str = "redis://localhost:6379"
     log_level: str = "info"
 
     class Config:
