@@ -20,7 +20,25 @@ async def ingest(
     file: UploadFile = File(..., description="GRC framework PDF"),
     framework_key: str = Form(..., description="Framework key, e.g. iso_27001"),
 ):
-    """Upload a GRC framework PDF and ingest it into the vector store."""
+    """Upload a GRC framework PDF and ingest it into the vector store.
+
+    Extracts text from the PDF, splits it into semantically meaningful chunks,
+    embeds each chunk, and upserts them into Qdrant with framework metadata.
+    Re-ingesting the same framework overwrites existing chunks (idempotent).
+
+    **Request (multipart/form-data):**
+    - `file` — the PDF document to ingest (must be `application/pdf`).
+    - `framework_key` — registered framework identifier (e.g. `iso_27001`).
+
+    **Response:**
+    - `chunks_created` — number of text chunks produced.
+    - `points_upserted` — number of vectors written to Qdrant.
+    - `duration_seconds` — total ingestion time.
+
+    **Errors:**
+    - `422` — unknown `framework_key` or non-PDF file uploaded.
+    - `500` — extraction, embedding, or Qdrant upsert failure.
+    """
 
     # Validate framework key
     try:

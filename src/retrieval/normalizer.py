@@ -12,7 +12,7 @@ leading filler phrases) and preserve ALL punctuation and numbers.
 import hashlib
 import re
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 
 # ── Filler prefixes (removed only when leading the text) ─────────
 
@@ -51,7 +51,7 @@ def normalize_finding(text: str) -> str:
 def build_cache_key(
     finding: str,
     frameworks: list[str],
-    settings: IngestionSettings,
+    settings: AppSettings,
 ) -> str:
     """Build a deterministic SHA-256 cache key from finding + frameworks + config.
 
@@ -67,8 +67,8 @@ def build_cache_key(
     fw_part = "|".join(sorted(frameworks))
     composite = (
         f"{normalized}||{fw_part}"
-        f"||{settings.gemini_parse_model}"
-        f"||{settings.collection_name}"
+        f"||{settings.gemini.parse_model}"
+        f"||{settings.qdrant.collection_name}"
     )
     digest = hashlib.sha256(composite.encode()).hexdigest()
-    return f"{settings.redis_key_prefix}:query:{digest}"
+    return f"{settings.redis.key_prefix}:query:{digest}"

@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.config.settings import IngestionSettings, get_ingestion_settings
+from src.config.settings import AppSettings, get_settings
 from src.config.registry import get_framework
 from src.ingestion.storage import get_storage
 from src.ingestion.extractor import extract_pdf_to_markdown
@@ -35,7 +35,7 @@ class IngestionResult:
 def ingest_framework(
     pdf_path: str | Path,
     framework_key: str,
-    settings: IngestionSettings | None = None,
+    settings: AppSettings | None = None,
 ) -> IngestionResult:
     """Run the full ingestion pipeline for a single GRC framework PDF.
 
@@ -47,7 +47,7 @@ def ingest_framework(
     Returns:
         IngestionResult with stats and status.
     """
-    settings = settings or get_ingestion_settings()
+    settings = settings or get_settings()
     pdf_path = Path(pdf_path)
     start = time.time()
 
@@ -56,7 +56,7 @@ def ingest_framework(
         fw_meta = get_framework(framework_key)
         logger.info(
             "=== Ingestion: %s (%s) → %s ===",
-            framework_key, fw_meta["display_name"], settings.collection_name,
+            framework_key, fw_meta["display_name"], settings.qdrant.collection_name,
         )
 
         # 1. Store PDF
@@ -83,7 +83,7 @@ def ingest_framework(
         points = loader.ingest_chunks(chunks)
 
         # 5. Cleanup PDF if configured
-        if settings.delete_pdf_after_ingestion:
+        if settings.storage.delete_pdf_after_ingestion:
             storage.delete(stored_path)
 
         duration = time.time() - start
@@ -94,7 +94,7 @@ def ingest_framework(
 
         return IngestionResult(
             framework_key=framework_key,
-            collection_name=settings.collection_name,
+            collection_name=settings.qdrant.collection_name,
             chunks_created=len(chunks),
             points_upserted=points,
             duration_seconds=round(duration, 2),
@@ -106,7 +106,7 @@ def ingest_framework(
         logger.error("Ingestion failed for %s: %s", framework_key, e, exc_info=True)
         return IngestionResult(
             framework_key=framework_key,
-            collection_name=settings.collection_name,
+            collection_name=settings.qdrant.collection_name,
             chunks_created=0,
             points_upserted=0,
             duration_seconds=round(duration, 2),

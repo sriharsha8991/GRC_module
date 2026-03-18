@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from qdrant_client import QdrantClient, models
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 from src.retrieval.models import ScoredChunk
 
 logger = logging.getLogger("retrieval.qdrant_retriever")
@@ -18,10 +18,10 @@ logger = logging.getLogger("retrieval.qdrant_retriever")
 class QdrantRetriever:
     """Searches the grc_controls collection with per-framework tenant filtering."""
 
-    def __init__(self, settings: IngestionSettings):
+    def __init__(self, settings: AppSettings):
         self._settings = settings
-        self._client = QdrantClient(url=settings.qdrant_url, timeout=30)
-        self._collection = settings.collection_name
+        self._client = QdrantClient(url=settings.qdrant.url, timeout=30)
+        self._collection = settings.qdrant.collection_name
 
     def search(
         self,
@@ -39,7 +39,7 @@ class QdrantRetriever:
         Returns:
             Scored chunks sorted by cosine similarity descending.
         """
-        limit = limit or self._settings.retrieval_limit
+        limit = limit or self._settings.retrieval.limit
 
         results = self._client.search(
             collection_name=self._collection,

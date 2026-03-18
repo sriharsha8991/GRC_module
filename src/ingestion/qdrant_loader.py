@@ -5,7 +5,7 @@ from typing import Any
 
 from qdrant_client import QdrantClient, models
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 from src.ingestion.chunker import Chunk
 from src.ingestion.embedder import GeminiEmbedder
 
@@ -15,16 +15,16 @@ logger = logging.getLogger("ingestion.qdrant_loader")
 class QdrantLoader:
     """Handles collection lifecycle and chunk ingestion into Qdrant."""
 
-    def __init__(self, settings: IngestionSettings):
+    def __init__(self, settings: AppSettings):
         self._settings = settings
-        self._qdrant = QdrantClient(url=settings.qdrant_url, timeout=30)
+        self._qdrant = QdrantClient(url=settings.qdrant.url, timeout=30)
         self._embedder = GeminiEmbedder(settings)
 
     # ── Collection management ─────────────────────────────
 
     def ensure_collection(self) -> None:
         """Create the grc_controls collection if it doesn't exist."""
-        name = self._settings.collection_name
+        name = self._settings.qdrant.collection_name
         if self._qdrant.collection_exists(name):
             logger.info("Collection '%s' already exists", name)
             return
@@ -32,7 +32,7 @@ class QdrantLoader:
         self._qdrant.create_collection(
             collection_name=name,
             vectors_config=models.VectorParams(
-                size=self._settings.embedding_dimension,
+                size=self._settings.embedding.dimension,
                 distance=models.Distance.COSINE,
             ),
         )
@@ -49,12 +49,12 @@ class QdrantLoader:
 
         logger.info(
             "Created collection '%s' (dim=%d, tenant index on 'framework')",
-            name, self._settings.embedding_dimension,
+            name, self._settings.embedding.dimension,
         )
 
     def collection_info(self) -> dict[str, Any] | None:
         """Get collection stats."""
-        name = self._settings.collection_name
+        name = self._settings.qdrant.collection_name
         if not self._qdrant.collection_exists(name):
             return None
         info = self._qdrant.get_collection(name)
@@ -77,7 +77,7 @@ class QdrantLoader:
             logger.warning("No chunks to ingest")
             return 0
 
-        name = self._settings.collection_name
+        name = self._settings.qdrant.collection_name
         self.ensure_collection()
 
         texts = [c.text for c in chunks]

@@ -12,7 +12,7 @@ from typing import Protocol
 
 import httpx
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 from src.retrieval.models import RankedChunk, ScoredChunk
 
 logger = logging.getLogger("retrieval.reranker")
@@ -83,9 +83,9 @@ class RerankerBackend(Protocol):
 class TEIReranker:
     """Reranks via TEI-hosted cross-encoder/ms-marco-MiniLM-L-12-v2."""
 
-    def __init__(self, settings: IngestionSettings):
-        self._url = f"{settings.reranker_url}/rerank"
-        self._default_threshold = settings.rerank_threshold
+    def __init__(self, settings: AppSettings):
+        self._url = f"{settings.reranker.url}/rerank"
+        self._default_threshold = settings.reranker.threshold
 
     def rerank(
         self,
@@ -123,14 +123,14 @@ class JinaReranker:
 
     _BASE_URL = "https://api.jina.ai/v1/rerank"
 
-    def __init__(self, settings: IngestionSettings):
-        if not settings.jina_api_key:
+    def __init__(self, settings: AppSettings):
+        if not settings.reranker.jina_api_key:
             raise ValueError(
-                "INGESTION_JINA_API_KEY must be set when reranker_backend='jina'"
+                "GRC_RERANKER__JINA_API_KEY must be set when reranker_backend='jina'"
             )
-        self._api_key = settings.jina_api_key
-        self._model = settings.jina_reranker_model
-        self._default_threshold = settings.rerank_threshold
+        self._api_key = settings.reranker.jina_api_key
+        self._model = settings.reranker.jina_model
+        self._default_threshold = settings.reranker.threshold
 
     def rerank(
         self,
@@ -175,9 +175,9 @@ class JinaReranker:
 # ── Factory ──────────────────────────────────────────────
 
 
-def get_reranker(settings: IngestionSettings) -> RerankerBackend:
+def get_reranker(settings: AppSettings) -> RerankerBackend:
     """Return the configured reranker backend."""
-    backend = settings.reranker_backend.lower()
+    backend = settings.reranker.backend.lower()
     if backend == "tei":
         return TEIReranker(settings)
     if backend == "jina":

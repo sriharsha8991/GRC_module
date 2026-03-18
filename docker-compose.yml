@@ -55,6 +55,22 @@ services:
       start_period: 180s
     restart: unless-stopped
 
+  # ── Redis — Query Cache ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis
+    command: ["redis-server", "--maxmemory", "1024mb", "--maxmemory-policy", "allkeys-lfu", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ── API Gateway — Health aggregator ────────────────────
   gateway:
     build:
@@ -86,3 +102,4 @@ volumes:
   qdrant_data:
   embedder_cache:
   reranker_cache:
+  redis_data:

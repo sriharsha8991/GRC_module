@@ -21,8 +21,25 @@ router = APIRouter(prefix="/query", tags=["query"])
 def query(request: QueryRequest):
     """Map a security finding to compliance framework controls.
 
-    Accepts a finding and list of target frameworks, returns structured
-    control mappings with citations, confidence scores, and critic verdicts.
+    Runs a 5-stage retrieval pipeline: embed → search → rerank → map → critique.
+    If Redis caching is enabled and a matching query exists, returns the cached
+    result instantly with zero token usage.
+
+    **Request body:**
+    - `finding_text` — the security finding or observation (min 10 chars).
+    - `target_frameworks` — list of framework keys to search against
+      (e.g. `["iso_27001"]`, `["iso_27001", "iso_27002"]`).
+
+    **Response:**
+    - `mappings` — list of `ControlMapping` objects, each with control ID,
+      title, domain, risk mitigated, citation, confidence score (0–100),
+      and critic verdict (`APPROVED` / `FAILED`).
+    - `token_usage` — Gemini tokens consumed (mapper + critic). Zero on cache hit.
+    - `duration_seconds` — end-to-end latency.
+
+    **Errors:**
+    - `422` — unknown framework key(s) in `target_frameworks`.
+    - `500` — pipeline failure (e.g. Qdrant/Gemini unreachable).
     """
     # Validate all target frameworks exist in registry
     invalid = [

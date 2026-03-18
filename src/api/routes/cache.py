@@ -7,8 +7,8 @@ import logging
 
 from fastapi import APIRouter
 
-from src.config.settings import get_ingestion_settings
-from src.retrieval.cache import RedisCache
+from src.config.settings import get_settings
+from src.retrieval.pipeline import _get_cache
 
 logger = logging.getLogger("api.cache")
 
@@ -17,20 +17,28 @@ router = APIRouter(prefix="/cache", tags=["cache"])
 
 @router.get("/stats")
 def cache_stats():
-    """Return Redis cache metrics (hit ratio, memory, key count).
+    """Return Redis cache metrics for observability.
 
-    Returns a degraded response if Redis is disabled or unreachable —
-    never raises.
+    Provides real-time statistics on cache performance including hit/miss
+    ratio, key count, and memory usage. Safe to poll frequently — uses
+    the shared Redis connection singleton.
+
+    **Response fields:**
+    - `enabled` / `connected` — cache status flags.
+    - `hits`, `misses`, `hit_ratio` — cache effectiveness.
+    - `keys_count` — number of cached query responses.
+    - `memory_used_mb`, `memory_max_mb`, `memory_pct` — Redis memory pressure.
+
+    Returns a degraded payload (`enabled: false` or `connected: false`) if
+    Redis is disabled or unreachable — never raises.
     """
-    settings = get_ingestion_settings()
+    settings = get_settings()
 
-    if not settings.redis_enabled:
+    if not settings.redis.enabled:
         return {"enabled": False, "connected": False}
 
-    cache = RedisCache(settings)
-    connected = cache.ping()
-
-    if not connected:
+    cache = _get_cache(settings)
+    if cache is None:
         return {"enabled": True, "connected": False}
 
     stats = cache.get_stats()

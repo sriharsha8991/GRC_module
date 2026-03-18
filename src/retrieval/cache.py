@@ -12,7 +12,7 @@ import logging
 
 import redis
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 from src.retrieval.models import QueryResponse
 
 logger = logging.getLogger("retrieval.cache")
@@ -21,13 +21,13 @@ logger = logging.getLogger("retrieval.cache")
 class RedisCache:
     """Cache-around client with stampede protection and LFU eviction."""
 
-    def __init__(self, settings: IngestionSettings):
+    def __init__(self, settings: AppSettings):
         self._settings = settings
-        self._prefix = settings.redis_key_prefix
+        self._prefix = settings.redis.key_prefix
         self._client = redis.Redis.from_url(
-            settings.redis_url,
-            socket_timeout=settings.redis_socket_timeout,
-            socket_connect_timeout=settings.redis_socket_timeout,
+            settings.redis.url,
+            socket_timeout=settings.redis.socket_timeout,
+            socket_connect_timeout=settings.redis.socket_timeout,
             decode_responses=True,
         )
 
@@ -70,7 +70,7 @@ class RedisCache:
                     f"{cache_key}:lock",
                     "1",
                     nx=True,
-                    ex=self._settings.redis_lock_timeout,
+                    ex=self._settings.redis.lock_timeout,
                 )
             )
         except Exception:
@@ -90,8 +90,8 @@ class RedisCache:
         try:
             info = self._client.info("memory")
             used = info.get("used_memory", 0)
-            max_bytes = self._settings.redis_max_memory_mb * 1024 * 1024
-            trigger = max_bytes * (self._settings.redis_eviction_trigger_pct / 100)
+            max_bytes = self._settings.redis.max_memory_mb * 1024 * 1024
+            trigger = max_bytes * (self._settings.redis.eviction_trigger_pct / 100)
 
             if used < trigger:
                 return
@@ -103,7 +103,7 @@ class RedisCache:
 
             evict_count = max(
                 1,
-                int(total_keys * self._settings.redis_eviction_target_pct / 100),
+                int(total_keys * self._settings.redis.eviction_target_pct / 100),
             )
             victims = self._client.zrange(freq_key, 0, evict_count - 1)
 
@@ -129,7 +129,7 @@ class RedisCache:
             total = hits + misses
             info = self._client.info("memory")
             used_mb = info.get("used_memory", 0) / (1024 * 1024)
-            max_mb = self._settings.redis_max_memory_mb
+            max_mb = self._settings.redis.max_memory_mb
             return {
                 "hits": hits,
                 "misses": misses,

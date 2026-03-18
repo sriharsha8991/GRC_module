@@ -63,6 +63,14 @@ def extract_pdf_to_markdown(pdf_path: Path) -> str:
     """
     pdf_str = str(pdf_path)
     doc = pymupdf.open(pdf_str)
+    try:
+        return _extract_from_doc(doc, pdf_path)
+    finally:
+        doc.close()
+
+
+def _extract_from_doc(doc, pdf_path):
+    """Internal: extract markdown from an already-opened pymupdf Document."""
     logger.info("Extracting PDF: %s (%d pages)", pdf_path.name, doc.page_count)
 
     # ── Pass 1: discover font sizes ─────────────────────
@@ -181,8 +189,6 @@ def extract_pdf_to_markdown(pdf_path: Path) -> str:
             _flush_buf(buf)
             # Paragraph break between blocks
             out_lines.append("")
-
-    doc.close()
 
     raw_md = "\n".join(out_lines)
     logger.info("Raw extraction: %d chars", len(raw_md))

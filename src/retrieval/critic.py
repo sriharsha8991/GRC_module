@@ -8,35 +8,22 @@ calibration.  Stamps each mapping APPROVED or FAILED.
 import json
 import logging
 
-from google import genai
 from google.genai import types
 
-from src.config.settings import IngestionSettings
+from src.config.genai_client import get_client
+from src.config.settings import AppSettings
 from src.retrieval.models import ControlMapping, MappingStatus, RankedChunk
 
 logger = logging.getLogger("retrieval.critic")
 
 _CRITIC_SYSTEM = """\
-You are an adversarial reviewer for GRC compliance mappings. For each mapping,
-you must verify three things:
+You are an adversarial reviewer for GRC compliance mappings. For each mapping verify:
+1. Citation Grounding — citation text appears verbatim (or very close) in the evidence.
+2. Logical Consistency — the cited control logically addresses the finding.
+3. Confidence Calibration — score is reasonable given evidence strength.
 
-1. **Citation Grounding** — Does the `citation` text actually appear (verbatim
-   or very close) in the provided evidence chunks for that framework? If the
-   citation is fabricated or heavily paraphrased, FAIL it.
-
-2. **Logical Consistency** — Does the cited control logically address the
-   security finding? A mapping to an unrelated control should be FAILED.
-
-3. **Confidence Calibration** — Is the confidence_score reasonable given the
-   strength of evidence? A score of 90+ with only tangential evidence should
-   be FAILED.
-
-For each mapping, respond with:
-- index: the 0-based position of the mapping in the input list
-- is_valid: true if all three checks pass, false otherwise
-- reason: brief explanation (required if is_valid is false, optional if true)
-
-Return a JSON array of objects with these three fields.\
+FAIL any mapping that does not pass all three checks.
+Return a JSON array of {index, is_valid, reason} per mapping.\
 """
 
 
@@ -49,9 +36,9 @@ class CriticVerdict(types.TypedDict):
 class AdversarialCritic:
     """Validates compliance mappings against source evidence via Gemini."""
 
-    def __init__(self, settings: IngestionSettings):
-        self._client = genai.Client(api_key=settings.gemini_api_key)
-        self._model = settings.gemini_parse_model
+    def __init__(self, settings: AppSettings):
+        self._client = get_client(settings)
+        self._model = settings.gemini.parse_model
 
     def _build_critic_prompt(
         self,
@@ -62,42 +49,33 @@ class AdversarialCritic:
         """Build the critic prompt with mappings + evidence for verification."""
         sections: list[str] = []
 
-        # Include the original finding
-        sections.append(f"# FINDING\n\n{finding}")
+        sections.append(f"FINDING: {finding}")
 
-        # Include mappings to validate
-        mapping_lines = ["# MAPPINGS TO VALIDATE\n"]
+        mapping_lines = ["MAPPINGS"]
         for i, m in enumerate(mappings):
             mapping_lines.append(
-                f"[{i}] framework={m.framework}, control_id={m.control_id}, "
-                f"control_title={m.control_title}, confidence={m.confidence_score}\n"
-                f"    citation: \"{m.citation}\"\n"
-                f"    citation_source: {m.citation_source}\n"
-                f"    risk_mitigated: {m.risk_mitigated}"
+                f"[{i}] {m.control_id} \"{m.control_title}\" confidence={m.confidence_score} "
+                f"citation=\"{m.citation}\" source={m.citation_source}"
             )
         sections.append("\n".join(mapping_lines))
 
-        # Include evidence chunks grouped by framework
-        evidence_lines = ["# SOURCE EVIDENCE\n"]
+        evidence_lines = ["EVIDENCE"]
         for fw_key, chunks in framework_chunks.items():
             if not chunks:
                 continue
-            evidence_lines.append(f"## {chunks[0].source_document} ({fw_key})")
             for j, chunk in enumerate(chunks, 1):
-                evidence_lines.append(
-                    f"\n[Evidence {j}] source: {chunk.citation_source}"
-                )
+                evidence_lines.append(f"[{j}|{chunk.citation_source}]")
                 evidence_lines.append(chunk.text)
         sections.append("\n".join(evidence_lines))
 
-        return "\n\n---\n\n".join(sections)
+        return "\n\n".join(sections)
 
     def validate(
         self,
         finding: str,
         mappings: list[ControlMapping],
         framework_chunks: dict[str, list[RankedChunk]],
-    ) -> list[ControlMapping]:
+    ) -> tuple[list[ControlMapping], dict]:
         """Validate each mapping and stamp APPROVED / FAILED.
 
         Args:
@@ -106,10 +84,11 @@ class AdversarialCritic:
             framework_chunks: The evidence chunks used to produce the mappings.
 
         Returns:
-            Updated mappings with status and critic_reason fields set.
+            Tuple of (updated mappings, token usage dict).
         """
+        _zero_tokens = {"prompt_tokens": 0, "total_tokens": 0}
         if not mappings:
-            return []
+            return [], _zero_tokens
 
         prompt = self._build_critic_prompt(finding, mappings, framework_chunks)
 
@@ -126,12 +105,20 @@ class AdversarialCritic:
             ),
         )
 
+        # Extract token usage
+        usage = response.usage_metadata
+        tokens = {
+            "prompt_tokens": usage.prompt_token_count or 0,
+            # "response_tokens": usage.response_token_count or 0,
+            "total_tokens": usage.total_token_count or 0,
+        } if usage else _zero_tokens
+
         raw_text = response.text
         try:
             verdicts = json.loads(raw_text)
         except json.JSONDecodeError:
             logger.error("Critic returned non-JSON: %s", raw_text[:500])
-            return mappings
+            return mappings, tokens
 
         # Build a lookup: index → verdict
         verdict_map: dict[int, dict] = {v["index"]: v for v in verdicts}
@@ -155,7 +142,7 @@ class AdversarialCritic:
             updated.append(mapping)
 
         logger.info(
-            "Critic verdict: %d approved, %d failed out of %d",
-            approved, failed, len(mappings),
+            "Critic verdict: %d approved, %d failed out of %d (%d tokens)",
+            approved, failed, len(mappings), tokens["total_tokens"],
         )
-        return updated
+        return updated, tokens
