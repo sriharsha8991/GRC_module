@@ -1,0 +1,36 @@
+# ── Git & VCS ─────────────────────────────────
+.git
+.github
+.gitignore
+
+# ── Python / venv ─────────────────────────────
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ── Secrets (injected at runtime via env vars) ─
+.env
+.env.local
+secrets/
+
+# ── IDE / Editor ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Notebooks & Docs ─────────────────────────
+*.ipynb
+.ipynb_checkpoints/
+docs/
+tests/
+repo_graph.html
+
+<!-- # ── Build artifacts ───────────────────────────
+*.json.bak
+Dockerfile
+docker-compose*.yml -->
