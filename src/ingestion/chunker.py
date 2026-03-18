@@ -19,7 +19,7 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 
 logger = logging.getLogger("ingestion.chunker")
 
@@ -127,7 +127,7 @@ def chunk_markdown(
     markdown: str,
     framework_key: str,
     framework_version: str,
-    settings: IngestionSettings,
+    settings: AppSettings,
     source_document: str = "",
 ) -> list[Chunk]:
     """Split framework markdown into embedding-ready chunks.
@@ -148,8 +148,8 @@ def chunk_markdown(
 
     # Stage 2: sub-split oversized chunks
     sub_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap,
+        chunk_size=settings.chunking.size,
+        chunk_overlap=settings.chunking.overlap,
         separators=_SUB_SEPARATORS,
         length_function=_estimate_tokens,
     )
@@ -171,7 +171,7 @@ def chunk_markdown(
             **headings,
         }
 
-        if _estimate_tokens(content) <= settings.chunk_size:
+        if _estimate_tokens(content) <= settings.chunking.size:
             raw = f"{label}\n\n{content}" if label else content
             chunks.append(Chunk(
                 point_id=_make_point_id(framework_key, idx),

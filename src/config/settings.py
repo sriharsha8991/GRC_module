@@ -1,56 +1,92 @@
-"""Ingestion pipeline settings — all values from env vars or .env file."""
+"""Application settings — all values loaded exclusively from .env file.
 
-from pydantic_settings import BaseSettings
+Env vars use GRC_ prefix with __ as nested delimiter.
+Example: GRC_QDRANT__URL=http://... , GRC_GEMINI__API_KEY=sk-...
+
+No hardcoded defaults — every setting MUST be defined in .env or as an
+environment variable.  Missing values cause an immediate validation error.
+"""
+
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class IngestionSettings(BaseSettings):
-    # Infrastructure
-    qdrant_url: str = "http://localhost:6333"
-    reranker_url: str = "http://localhost:8082"
 
-    # PDF storage
-    storage_backend: str = "local"
-    local_pdf_dir: Path = Path("data/pdfs")
+class QdrantSettings(BaseModel):
+    url: str
+    collection_name: str
+    distance: str
 
-    # Gemini (google-genai SDK)
-    gemini_api_key: str = ""
-    gemini_parse_model: str = "gemini-2.5-flash"
-    gemini_embedding_model: str = "gemini-embedding-001"
-    gemini_window_size: int = 30000
 
-    # Embedding
-    embedding_dimension: int = 1536
-    embed_batch_size: int = 32
+class GeminiSettings(BaseModel):
+    api_key: str
+    parse_model: str
+    embedding_model: str
+    window_size: int
 
-    # Fallback embedder (TEI)
-    tei_embedder_url: str = "http://localhost:8081"
 
-    # Chunking
-    chunk_size: int = 256
-    chunk_overlap: int = 50
+class EmbeddingSettings(BaseModel):
+    dimension: int
+    batch_size: int
+    tei_url: str
 
-    # Qdrant
-    collection_name: str = "grc_controls"
-    qdrant_distance: str = "Cosine"
 
-    # Retrieval
-    use_reranker: bool = False
-    rerank_threshold: float = 0.3
-    retrieval_limit: int = 10
-    if use_reranker:
-        retrieval_limit = 30  # Get more candidates if reranking
+class ChunkingSettings(BaseModel):
+    size: int
+    overlap: int
 
-    # Cleanup
-    delete_pdf_after_ingestion: bool = True
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        env_prefix = "INGESTION_"
+class StorageSettings(BaseModel):
+    backend: str
+    local_pdf_dir: Path
+    delete_pdf_after_ingestion: bool
+
+
+class RetrievalSettings(BaseModel):
+    use_reranker: bool
+    limit: int
+    critic_confidence_threshold: int
+
+
+class RerankerSettings(BaseModel):
+    url: str
+    backend: str
+    threshold: float
+    jina_api_key: str
+    jina_model: str
+
+
+class RedisSettings(BaseModel):
+    url: str
+    enabled: bool
+    socket_timeout: float
+    max_memory_mb: int
+    eviction_trigger_pct: int
+    eviction_target_pct: int
+    lock_timeout: int
+    key_prefix: str
+
+
+class AppSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="GRC_",
+        env_nested_delimiter="__",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
+    qdrant: QdrantSettings
+    gemini: GeminiSettings
+    embedding: EmbeddingSettings
+    chunking: ChunkingSettings
+    storage: StorageSettings
+    retrieval: RetrievalSettings
+    reranker: RerankerSettings
+    redis: RedisSettings
 
 
 @lru_cache
-def get_ingestion_settings() -> IngestionSettings:
-    return IngestionSettings()
+def get_settings() -> AppSettings:
+    return AppSettings()

@@ -9,10 +9,10 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from google import genai
 from google.genai import types
 
-from src.config.settings import IngestionSettings
+from src.config.genai_client import get_client
+from src.config.settings import AppSettings
 
 logger = logging.getLogger("ingestion.embedder")
 
@@ -23,11 +23,11 @@ _GEMINI_MAX_BATCH = 100
 class GeminiEmbedder:
     """Embeds text using Gemini embedding-001 with MRL dimensionality control."""
 
-    def __init__(self, settings: IngestionSettings):
-        self._client = genai.Client(api_key=settings.gemini_api_key)
-        self._model = settings.gemini_embedding_model
-        self._dimension = settings.embedding_dimension
-        self._batch_size = min(settings.embed_batch_size, _GEMINI_MAX_BATCH)
+    def __init__(self, settings: AppSettings):
+        self._client = get_client(settings)
+        self._model = settings.gemini.embedding_model
+        self._dimension = settings.embedding.dimension
+        self._batch_size = min(settings.embedding.batch_size, _GEMINI_MAX_BATCH)
 
     def _embed_batch(
         self,

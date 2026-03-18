@@ -18,29 +18,30 @@ services:
     restart: unless-stopped
 
   # ── HF TEI — Embedding Model (bge-large-en-v1.5) ──────
-  embedder:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
-    container_name: grc-embedder
-    command: ["--model-id", "BAAI/bge-large-en-v1.5", "--port", "80"]
-    ports:
-      - "8081:80"
-    volumes:
-      - embedder_cache:/data
-    environment:
-      - HF_HUB_ENABLE_HF_TRANSFER=0
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 180s
-    restart: unless-stopped
+  #embedder: 
+  #for future use case when we want to support multiple embedding models or have a separate embedding service. For now, the gateway will call the GEMINI API directly for embeddings.
+  #   image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+  #   container_name: grc-embedder
+  #   command: ["--model-id", "BAAI/bge-large-en-v1.5", "--port", "80"]
+  #   ports:
+  #     - "8081:80"
+  #   volumes:
+  #     - embedder_cache:/data
+  #   environment:
+  #     - HF_HUB_ENABLE_HF_TRANSFER=0
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:80/health || exit 1"]
+  #     interval: 15s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 180s
+  #   restart: unless-stopped
 
-  # ── HF TEI — Reranker Model (bge-reranker-v2-m3) ──────
+  # ── HF TEI — Cross-Encoder Reranker (ms-marco-MiniLM-L-12-v2) ──
   reranker:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
     container_name: grc-reranker
-    command: ["--model-id", "BAAI/bge-reranker-v2-m3", "--port", "80"]
+    command: ["--model-id", "cross-encoder/ms-marco-MiniLM-L-12-v2", "--port", "80"]
     ports:
       - "8082:80"
     volumes:
@@ -53,6 +54,22 @@ services:
       timeout: 10s
       retries: 10
       start_period: 180s
+    restart: unless-stopped
+
+  # ── Redis — Query Cache ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: grc-redis
+    command: ["redis-server", "--maxmemory", "1024mb", "--maxmemory-policy", "allkeys-lfu", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # ── API Gateway — Health aggregator ────────────────────
@@ -71,8 +88,8 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
-      embedder:
-        condition: service_healthy
+      # embedder: future dependency when we have a separate embedding service
+      #   condition: service_healthy
       reranker:
         condition: service_healthy
     healthcheck:
@@ -84,5 +101,6 @@ services:
 
 volumes:
   qdrant_data:
-  embedder_cache:
+  # embedder_cache: future setup 
   reranker_cache:
+  redis_data:

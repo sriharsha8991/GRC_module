@@ -12,8 +12,8 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="GRC Compliance API",
-    description="Ingest GRC framework PDFs and query for compliance mappings",
+    title="GRC APIs",
+    description="Upload the GRC framework PDF to the ingestion endpoint, then query security findings against it.",
     version="0.1.0",
 )
 

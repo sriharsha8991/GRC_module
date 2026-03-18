@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from src.config.settings import IngestionSettings
+from src.config.settings import AppSettings
 
 logger = logging.getLogger("ingestion.storage")
 
@@ -34,8 +34,8 @@ class PDFStorage(Protocol):
 class LocalPDFStorage:
     """Stores PDFs on local filesystem under data/pdfs/{framework_key}/."""
 
-    def __init__(self, settings: IngestionSettings):
-        self._base_dir = Path(settings.local_pdf_dir)
+    def __init__(self, settings: AppSettings):
+        self._base_dir = Path(settings.storage.local_pdf_dir)
         self._base_dir.mkdir(parents=True, exist_ok=True)
 
     def store(self, source_path: Path, framework_key: str) -> Path:
@@ -61,9 +61,9 @@ class LocalPDFStorage:
         return sorted(fdir.glob("*.pdf"))
 
 
-def get_storage(settings: IngestionSettings) -> PDFStorage:
+def get_storage(settings: AppSettings) -> PDFStorage:
     """Factory — returns the appropriate storage backend."""
-    if settings.storage_backend == "local":
+    if settings.storage.backend == "local":
         return LocalPDFStorage(settings)
-    # Future: elif settings.storage_backend == "s3": return S3PDFStorage(settings)
-    raise ValueError(f"Unknown storage backend: {settings.storage_backend}")
+    # Future: elif settings.storage.backend == "s3": return S3PDFStorage(settings)
+    raise ValueError(f"Unknown storage backend: {settings.storage.backend}")

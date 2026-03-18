@@ -117,6 +117,20 @@ class QueryRequest(BaseModel):
     )
 
 
+class TokenUsage(BaseModel):
+    """Aggregated token usage across all Gemini calls in a single query."""
+
+    mapper_prompt_tokens: int = 0
+    mapper_total_tokens: int = 0
+    critic_prompt_tokens: int = 0
+    critic_total_tokens: int = 0
+    critic_skipped: bool = False
+    total_tokens: int = Field(
+        default=0,
+        description="Sum of all tokens across mapper + critic calls",
+    )
+
+
 class QueryResponse(BaseModel):
     """Full response from the retrieval pipeline."""
 
@@ -126,3 +140,4 @@ class QueryResponse(BaseModel):
     chunks_retrieved: int = 0
     chunks_after_rerank: int = 0
     duration_seconds: float = 0.0
+    token_usage: TokenUsage = Field(default_factory=TokenUsage)
