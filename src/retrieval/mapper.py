@@ -1,6 +1,6 @@
 """Compliance mapper — maps a security finding to framework controls via Gemini.
 
-Single-responsibility: given a finding and reranked evidence chunks, produces
+Single-responsibility: given a finding and retrieved evidence chunks, produces
 structured ControlMapping objects using a single Gemini LLM call.
 Does NOT search, embed, or validate — those are separate concerns.
 """
@@ -12,7 +12,7 @@ from google.genai import types
 
 from src.config.genai_client import get_client
 from src.config.settings import AppSettings
-from src.retrieval.models import ControlMapping, RankedChunk
+from src.retrieval.models import ControlMapping, ScoredChunk
 
 logger = logging.getLogger("retrieval.mapper")
 
@@ -39,7 +39,7 @@ class ComplianceMapper:
     def _build_evidence_prompt(
         self,
         finding: str,
-        framework_chunks: dict[str, list[RankedChunk]],
+        framework_chunks: dict[str, list[ScoredChunk]],
     ) -> str:
         """Build the user prompt with finding + grouped evidence chunks."""
         sections: list[str] = []
@@ -63,13 +63,13 @@ class ComplianceMapper:
     def map_finding(
         self,
         finding: str,
-        framework_chunks: dict[str, list[RankedChunk]],
+        framework_chunks: dict[str, list[ScoredChunk]],
     ) -> tuple[list[ControlMapping], dict]:
         """Map a finding to controls using a single Gemini call.
 
         Args:
             finding: The security finding text.
-            framework_chunks: Reranked evidence grouped by framework key.
+            framework_chunks: Retrieved evidence grouped by framework key.
 
         Returns:
             Tuple of (list of ControlMapping, token usage dict).

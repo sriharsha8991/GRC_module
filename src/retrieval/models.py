@@ -39,33 +39,6 @@ class ScoredChunk:
                 parts.append(val)
         return " > ".join(parts)
 
-
-@dataclass
-class RankedChunk:
-    """A chunk that has passed reranking with a cross-encoder score."""
-
-    text: str
-    metadata: dict = field(default_factory=dict)
-    qdrant_score: float = 0.0
-    rerank_score: float = 0.0
-
-    @property
-    def framework(self) -> str:
-        return self.metadata.get("framework", "")
-
-    @property
-    def source_document(self) -> str:
-        return self.metadata.get("source_document", "")
-
-    @property
-    def heading_breadcrumb(self) -> str:
-        parts = []
-        for level in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            val = self.metadata.get(level, "").strip()
-            if val:
-                parts.append(val)
-        return " > ".join(parts)
-
     @property
     def citation_source(self) -> str:
         """Full citation path: 'ISO/IEC 27001:2022, 6 Planning > 6.1.2 ...'"""
@@ -138,6 +111,5 @@ class QueryResponse(BaseModel):
     mappings: list[ControlMapping] = Field(default_factory=list)
     frameworks_searched: list[str] = Field(default_factory=list)
     chunks_retrieved: int = 0
-    chunks_after_rerank: int = 0
     duration_seconds: float = 0.0
     token_usage: TokenUsage = Field(default_factory=TokenUsage)

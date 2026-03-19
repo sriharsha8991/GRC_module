@@ -81,11 +81,9 @@ def format_sample_report(result: SampleResult) -> str:
         f"R: {result.control_recall:.2f}  F1: {result.control_f1:.2f}",
         f"    Expected:  {result.expected_controls}",
         f"    Predicted: {result.predicted_controls}",
-        f"    Domain recall: {result.domain_recall:.2f}  "
-        f"Approved: {result.approved_count}/{result.mappings_returned}  "
+        f"    Approved: {result.approved_count}/{result.mappings_returned}  "
         f"Avg confidence: {result.avg_confidence:.0f}",
-        f"    Chunks: {result.chunks_retrieved} retrieved → "
-        f"{result.chunks_after_rerank} after rerank",
+        f"    Chunks: {result.chunks_retrieved} retrieved",
         f"    Time: {result.duration_seconds:.1f}s  Tokens: {result.total_tokens}",
     ])
     return "\n".join(lines)
@@ -114,7 +112,6 @@ def format_aggregate_report(agg: AggregateMetrics) -> str:
         "",
         "  ── Retrieval Stats ─────────────────────────────────────",
         f"    Mean Chunks Retrieved:  {agg.mean_chunks_retrieved:.1f}",
-        f"    Mean After Rerank:      {agg.mean_chunks_after_rerank:.1f}",
         "",
         "  ── Cost & Latency ──────────────────────────────────────",
         f"    Mean Latency:           {agg.mean_duration_seconds:.2f}s",

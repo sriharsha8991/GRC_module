@@ -12,7 +12,7 @@ from google.genai import types
 
 from src.config.genai_client import get_client
 from src.config.settings import AppSettings
-from src.retrieval.models import ControlMapping, MappingStatus, RankedChunk
+from src.retrieval.models import ControlMapping, MappingStatus, ScoredChunk
 
 logger = logging.getLogger("retrieval.critic")
 
@@ -44,7 +44,7 @@ class AdversarialCritic:
         self,
         finding: str,
         mappings: list[ControlMapping],
-        framework_chunks: dict[str, list[RankedChunk]],
+        framework_chunks: dict[str, list[ScoredChunk]],
     ) -> str:
         """Build the critic prompt with mappings + evidence for verification."""
         sections: list[str] = []
@@ -74,7 +74,7 @@ class AdversarialCritic:
         self,
         finding: str,
         mappings: list[ControlMapping],
-        framework_chunks: dict[str, list[RankedChunk]],
+        framework_chunks: dict[str, list[ScoredChunk]],
     ) -> tuple[list[ControlMapping], dict]:
         """Validate each mapping and stamp APPROVED / FAILED.
 

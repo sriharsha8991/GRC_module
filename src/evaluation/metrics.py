@@ -42,7 +42,6 @@ class SampleResult:
     predicted_domains: list[str] = field(default_factory=list)
     mappings_returned: int = 0
     chunks_retrieved: int = 0
-    chunks_after_rerank: int = 0
     approved_count: int = 0
     failed_count: int = 0
 
@@ -96,7 +95,6 @@ def compute_sample_metrics(
     result.predicted_domains = list({m.domain for m in all_mappings})
     result.mappings_returned = len(all_mappings)
     result.chunks_retrieved = response.chunks_retrieved
-    result.chunks_after_rerank = response.chunks_after_rerank
     result.approved_count = len(approved_mappings)
     result.failed_count = len(all_mappings) - len(approved_mappings)
     result.duration_seconds = response.duration_seconds
@@ -161,7 +159,6 @@ class AggregateMetrics:
 
     # Retrieval
     mean_chunks_retrieved: float = 0.0
-    mean_chunks_after_rerank: float = 0.0
 
     # Cost
     mean_duration_seconds: float = 0.0
@@ -213,7 +210,6 @@ def compute_aggregate_metrics(results: list[SampleResult]) -> AggregateMetrics:
     agg.mean_approval_rate = _group_mean(results, "approval_rate")
     agg.mean_avg_confidence = _group_mean(results, "mean_avg_confidence")
     agg.mean_chunks_retrieved = _group_mean(results, "chunks_retrieved")
-    agg.mean_chunks_after_rerank = _group_mean(results, "chunks_after_rerank")
     agg.mean_duration_seconds = _group_mean(results, "duration_seconds")
 
     valid = [r for r in results if r.error is None]

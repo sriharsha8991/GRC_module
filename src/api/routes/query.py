@@ -21,7 +21,7 @@ router = APIRouter(prefix="/query", tags=["query"])
 def query(request: QueryRequest):
     """Map a security finding to compliance framework controls.
 
-    Runs a 5-stage retrieval pipeline: embed → search → rerank → map → critique.
+    Runs a 4-stage retrieval pipeline: embed → search → map → critique.
     If Redis caching is enabled and a matching query exists, returns the cached
     result instantly with zero token usage.
 
