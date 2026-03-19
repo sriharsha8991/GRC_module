@@ -1,16 +1,15 @@
 """Retrieval pipeline orchestrator — end-to-end finding → compliance mappings.
 
 Single-responsibility: composes the retrieval stages in the correct order.
-Each stage (embed, search, rerank, map, critique) is delegated to its
+Each stage (embed, search, map, critique) is delegated to its
 dedicated module.  This module only owns sequencing and timing.
 
 Flow:
   1. Embed finding  (GeminiEmbedder — RETRIEVAL_QUERY)
   2. Search Qdrant  (QdrantRetriever — parallel per-framework)
-  3. Rerank         (Reranker — independent per-framework, threshold filter)
-  4. Map            (ComplianceMapper — single Gemini call, all frameworks)
-  5. Critique       (AdversarialCritic — validates citations + logic)
-  6. Return         QueryResponse
+  3. Map            (ComplianceMapper — single Gemini call, all frameworks)
+  4. Critique       (AdversarialCritic — validates citations + logic)
+  5. Return         QueryResponse
 """
 
 import logging
@@ -22,10 +21,9 @@ from src.ingestion.embedder import GeminiEmbedder
 from src.retrieval.cache import RedisCache
 from src.retrieval.critic import AdversarialCritic
 from src.retrieval.mapper import ComplianceMapper
-from src.retrieval.models import QueryRequest, QueryResponse, RankedChunk, TokenUsage
+from src.retrieval.models import QueryRequest, QueryResponse, ScoredChunk, TokenUsage
 from src.retrieval.normalizer import build_cache_key
 from src.retrieval.qdrant_retriever import QdrantRetriever
-from src.retrieval.reranker import get_reranker
 
 logger = logging.getLogger("retrieval.pipeline")
 
@@ -90,8 +88,6 @@ def query_finding(
             "acquired" if lock_acquired else "busy (another request caching)",
         )
 
-    threshold = settings.reranker.threshold
-
     # ── 1. Embed the finding ────────────────────────────
     embedder = GeminiEmbedder(settings)
     query_embedding = embedder.embed_query(request.finding_text)
@@ -107,55 +103,24 @@ def query_finding(
     logger.info("Retrieved %d chunks across %d frameworks",
                 total_retrieved, len(request.target_frameworks))
 
-    # ── 3. Rerank (or pass-through) per-framework ───────
-    reranked_chunks: dict[str, list[RankedChunk]] = {}
-
-    if settings.retrieval.use_reranker:
-        reranker = get_reranker(settings)
-        for fw_key, scored in search_results.items():
-            ranked = reranker.rerank(
-                query=request.finding_text,
-                chunks=scored,
-                threshold=threshold,
-            )
-            if ranked:
-                reranked_chunks[fw_key] = ranked
-    else:
-        logger.info("Reranker disabled — passing Qdrant results through")
-        for fw_key, scored in search_results.items():
-            reranked_chunks[fw_key] = [
-                RankedChunk(
-                    text=c.text,
-                    metadata=c.metadata,
-                    qdrant_score=c.qdrant_score,
-                    rerank_score=c.qdrant_score,
-                )
-                for c in scored
-            ]
-
-    total_after_rerank = sum(len(v) for v in reranked_chunks.values())
-    logger.info("After rerank: %d chunks (reranker=%s)",
-                total_after_rerank, "on" if settings.retrieval.use_reranker else "off")
-
-    if total_after_rerank == 0:
+    if total_retrieved == 0:
         duration = time.time() - start
-        logger.warning("No chunks survived reranking — returning empty response")
+        logger.warning("No chunks retrieved — returning empty response")
         return QueryResponse(
             finding_text=request.finding_text,
             frameworks_searched=request.target_frameworks,
-            chunks_retrieved=total_retrieved,
-            chunks_after_rerank=0,
+            chunks_retrieved=0,
             duration_seconds=round(duration, 2),
         )
 
-    # ── 4. Map finding to controls (single Gemini call) ─
+    # ── 3. Map finding to controls (single Gemini call) ─
     mapper = ComplianceMapper(settings)
     mappings, mapper_tokens = mapper.map_finding(
         finding=request.finding_text,
-        framework_chunks=reranked_chunks,
+        framework_chunks=search_results,
     )
 
-    # ── 5. Conditional adversarial critique ─────────
+    # ── 4. Conditional adversarial critique ─────────
     critic_tokens = {"prompt_tokens": 0, "total_tokens": 0}
     critic_skipped = False
     threshold_val = settings.retrieval.critic_confidence_threshold
@@ -172,8 +137,8 @@ def query_finding(
     elif mappings:
         # Filter evidence to only chunks cited by the mapper
         cited_sources = {m.citation_source for m in mappings}
-        filtered_chunks: dict[str, list[RankedChunk]] = {}
-        for fw_key, chunks in reranked_chunks.items():
+        filtered_chunks: dict[str, list[ScoredChunk]] = {}
+        for fw_key, chunks in search_results.items():
             relevant = [c for c in chunks if c.citation_source in cited_sources]
             if relevant:
                 filtered_chunks[fw_key] = relevant
@@ -182,7 +147,7 @@ def query_finding(
         mappings, critic_tokens = critic.validate(
             finding=request.finding_text,
             mappings=mappings,
-            framework_chunks=filtered_chunks if filtered_chunks else reranked_chunks,
+            framework_chunks=filtered_chunks if filtered_chunks else search_results,
         )
 
     # ── Token aggregation ────────────────────────────
@@ -206,7 +171,6 @@ def query_finding(
         mappings=mappings,
         frameworks_searched=request.target_frameworks,
         chunks_retrieved=total_retrieved,
-        chunks_after_rerank=total_after_rerank,
         duration_seconds=round(duration, 2),
         token_usage=token_usage,
     )

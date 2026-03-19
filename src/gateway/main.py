@@ -20,8 +20,8 @@ logger = logging.getLogger("gateway")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(
-        "Gateway starting — Qdrant=%s  Embedder=%s  Reranker=%s",
-        settings.qdrant_url, settings.embedder_url, settings.reranker_url,
+        "Gateway starting — API=%s  Qdrant=%s",
+        settings.api_url, settings.qdrant_url,
     )
     yield
     logger.info("Gateway shutting down")
@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="GRC AI Gateway",
     version="0.1.0",
-    description="Health-check aggregator for Qdrant, Embedding, and Reranker services.",
+    description="API gateway — proxies requests to the GRC API and aggregates service health.",
     lifespan=lifespan,
 )
 

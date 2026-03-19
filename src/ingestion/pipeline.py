@@ -2,7 +2,7 @@
 
 PDF → Markdown (PyMuPDF4LLM) → Markdown Chunks → Gemini Embed → Qdrant.
 No structured parsing — the markdown splitter preserves heading structure
-and the embeddings + reranker handle semantic matching.
+and the embeddings handle semantic matching.
 """
 
 import logging

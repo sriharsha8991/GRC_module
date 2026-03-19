@@ -45,17 +45,8 @@ class StorageSettings(BaseModel):
 
 
 class RetrievalSettings(BaseModel):
-    use_reranker: bool
     limit: int
     critic_confidence_threshold: int
-
-
-class RerankerSettings(BaseModel):
-    url: str
-    backend: str
-    threshold: float
-    jina_api_key: str
-    jina_model: str
 
 
 class RedisSettings(BaseModel):
@@ -83,7 +74,6 @@ class AppSettings(BaseSettings):
     chunking: ChunkingSettings
     storage: StorageSettings
     retrieval: RetrievalSettings
-    reranker: RerankerSettings
     redis: RedisSettings
 
 

@@ -5,7 +5,7 @@ Stage 1: MarkdownHeaderTextSplitter — splits at heading boundaries and
 Stage 2: RecursiveCharacterTextSplitter — sub-splits any chunks that
          exceed the token limit, preserving the heading metadata.
 
-Every chunk carries its parent heading so the reranker and LLM can
+Every chunk carries its parent heading so the LLM can
 identify which clause/section the text belongs to.
 """
 

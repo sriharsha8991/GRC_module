@@ -5,7 +5,6 @@ from src.config.settings import (  # noqa: F401
     GeminiSettings,
     QdrantSettings,
     RedisSettings,
-    RerankerSettings,
     RetrievalSettings,
     StorageSettings,
     get_settings,
