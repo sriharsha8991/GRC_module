@@ -1,0 +1,14 @@
+# Scale API and Gateway to 2 replicas for production
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grc-api
+spec:
+  replicas: 2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grc-gateway
+spec:
+  replicas: 2

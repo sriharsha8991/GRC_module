@@ -4,3 +4,6 @@ docs/test_docs/
 __pycache__/
 *.pyc   
 .env
+
+# K8s secrets (contain API keys — never commit real values)
+k8s/overlays/*/secrets.env

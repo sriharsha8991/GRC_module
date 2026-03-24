@@ -16,9 +16,9 @@ from src.retrieval.models import ControlMapping, ScoredChunk
 
 logger = logging.getLogger("retrieval.mapper")
 
-_SYSTEM_PROMPT = """\
-You are a GRC compliance analyst. Map the security finding to specific
-framework controls using ONLY the provided evidence.
+_SYSTEM_PROMPT_TEMPLATE = """\
+You are a GRC compliance analyst. Map the security finding to {framework_name}
+controls ONLY, using ONLY the provided evidence.
 
 Rules:
 - One mapping per distinct control.
@@ -27,6 +27,9 @@ Rules:
 - Do not fabricate mappings unsupported by evidence.
 - confidence_score (0-100) reflects how directly the control addresses the finding.\
 """
+
+# Fallback when no framework_key is provided (backwards-compatible)
+_SYSTEM_PROMPT_DEFAULT = _SYSTEM_PROMPT_TEMPLATE.format(framework_name="the target framework")
 
 
 class ComplianceMapper:
@@ -64,12 +67,15 @@ class ComplianceMapper:
         self,
         finding: str,
         framework_chunks: dict[str, list[ScoredChunk]],
+        framework_key: str | None = None,
     ) -> tuple[list[ControlMapping], dict]:
-        """Map a finding to controls using a single Gemini call.
+        """Map a finding to controls using a Gemini call.
 
         Args:
             finding: The security finding text.
             framework_chunks: Retrieved evidence grouped by framework key.
+            framework_key: If provided, the system prompt is scoped to this
+                           single framework for more focused mapping.
 
         Returns:
             Tuple of (list of ControlMapping, token usage dict).
@@ -81,16 +87,22 @@ class ComplianceMapper:
 
         prompt = self._build_evidence_prompt(finding, framework_chunks)
 
+        system_prompt = (
+            _SYSTEM_PROMPT_TEMPLATE.format(framework_name=framework_key)
+            if framework_key
+            else _SYSTEM_PROMPT_DEFAULT
+        )
+
         logger.info(
-            "Calling Gemini mapper: %d frameworks, %d evidence chunks",
-            len(framework_chunks), total_chunks,
+            "Calling Gemini mapper: framework=%s, %d evidence chunks",
+            framework_key or "all", total_chunks,
         )
 
         response = self._client.models.generate_content(
             model=self._model,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT,
+                system_instruction=system_prompt,
                 response_mime_type="application/json",
                 response_schema=list[ControlMapping],
                 temperature=0.1,
