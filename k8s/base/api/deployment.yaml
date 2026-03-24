@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grc-api
+  labels:
+    app.kubernetes.io/name: grc-api
+    app.kubernetes.io/part-of: grc
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grc-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grc-api
+        app.kubernetes.io/part-of: grc
+        app.kubernetes.io/component: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-qdrant
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z qdrant 6333; do
+                echo "waiting for qdrant..."
+                sleep 2
+              done
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+        - name: wait-for-redis
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "waiting for redis..."
+                sleep 2
+              done
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+      containers:
+        - name: api
+          image: REGISTRY_PLACEHOLDER/grc-api:IMAGE_TAG
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: grc-api-config
+            - secretRef:
+                name: grc-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: api-tmp
+              mountPath: /tmp
+            - name: api-data
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: api-tmp
+          emptyDir: {}
+        - name: api-data
+          emptyDir: {}
