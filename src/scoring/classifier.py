@@ -50,7 +50,12 @@ SCORING APPROACH:
 - Base metrics only (no Temporal/Environmental).
 
 OUTPUT RULES:
-- description, potential_impact, how_to_remediate: each ONE concise sentence.
+- description: 2-3 sentences — explain the vulnerability technically, how it \
+  arises, and what it exposes.
+- potential_impact: 2-3 sentences — detail what an attacker gains, which \
+  assets are affected, and the business consequences.
+- how_to_remediate: provide numbered steps (e.g. "1. ... 2. ... 3. ...") \
+  that a security engineer can follow to fix the issue.
 - metric_rationale: one short line per metric explaining your reasoning \
   (e.g. "AV:N — the service is exposed over the network").\
 """
