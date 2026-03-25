@@ -13,6 +13,9 @@ langchain-text-splitters>=1.1.0
 # HTTP
 httpx>=0.28.0
 
+# CVSS scoring
+cvss>=3.2,<4.0
+
 # Redis cache
 redis>=5.0.0,<6.0.0
 
