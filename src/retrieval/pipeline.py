@@ -1,14 +1,15 @@
 """Retrieval pipeline orchestrator — end-to-end finding → compliance mappings.
 
 Single-responsibility: composes the retrieval stages in the correct order.
-Each stage (embed, search, map, critique) is delegated to its
+Each stage (embed, search, map, critique, score) is delegated to its
 dedicated module.  This module only owns sequencing and timing.
 
 Flow:
   1. Embed finding  (GeminiEmbedder — RETRIEVAL_QUERY)
   2. Search Qdrant  (QdrantRetriever — parallel per-framework)
-  3. Per-framework: Map + conditional Critique (parallel)
-  4. Cumulate       Merge mappings + tokens from all frameworks
+  3. Per-framework: Map + conditional Critique ─┐ (parallel)
+     CVSS: Classify + Score (finding text only)  ┘
+  4. Cumulate       Merge mappings + CVSS + tokens
   5. Return         QueryResponse
 """
 
@@ -25,6 +26,9 @@ from src.retrieval.mapper import ComplianceMapper
 from src.retrieval.models import ControlMapping, QueryRequest, QueryResponse, ScoredChunk, TokenUsage
 from src.retrieval.normalizer import build_cache_key
 from src.retrieval.qdrant_retriever import QdrantRetriever
+from src.scoring.classifier import CVSSClassifier
+from src.scoring.engine import compute_cvss
+from src.scoring.models import CVSSResult
 
 logger = logging.getLogger("retrieval.pipeline")
 
@@ -115,8 +119,10 @@ def query_finding(
         )
 
     # ── 3. Per-framework: Map + conditional Critic (parallel) ──
+    #    CVSS classification runs in parallel (only needs finding text)
     mapper = ComplianceMapper(settings)
     critic = AdversarialCritic(settings)
+    cvss_classifier = CVSSClassifier(settings)
     threshold_val = settings.retrieval.critic_confidence_threshold
 
     def _process_framework(
@@ -166,16 +172,28 @@ def query_finding(
 
         return fw_mappings, m_tokens, c_tokens, c_skipped
 
-    # Fan-out: one thread per framework
+    # Fan-out: one thread per framework + one for CVSS
     all_mappings: list[ControlMapping] = []
     agg_mapper_prompt = 0
     agg_mapper_total = 0
     agg_critic_prompt = 0
     agg_critic_total = 0
     all_critic_skipped = True
+    cvss_result: CVSSResult | None = None
+    cvss_tokens: dict = {"prompt_tokens": 0, "total_tokens": 0}
 
-    max_workers = min(len(search_results), 4)
+    def _classify_cvss() -> tuple[CVSSResult, dict]:
+        """Run CVSS classification + scoring (parallel with mapper/critic)."""
+        classification, tokens = cvss_classifier.classify(request.finding_text)
+        result = compute_cvss(classification)
+        return result, tokens
+
+    max_workers = min(len(search_results) + 1, 5)  # +1 for CVSS thread
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit CVSS classification in parallel
+        cvss_future = executor.submit(_classify_cvss)
+
+        # Submit per-framework mapper/critic
         future_to_key = {
             executor.submit(_process_framework, fw_key, chunks): fw_key
             for fw_key, chunks in search_results.items()
@@ -194,6 +212,12 @@ def query_finding(
             except Exception:
                 logger.exception("Framework %s failed in mapper/critic", fw_key)
 
+        # Collect CVSS result
+        try:
+            cvss_result, cvss_tokens = cvss_future.result()
+        except Exception:
+            logger.exception("CVSS classification failed — response will have cvss=null")
+
     # ── 4. Token aggregation ─────────────────────────
     token_usage = TokenUsage(
         mapper_prompt_tokens=agg_mapper_prompt,
@@ -201,7 +225,9 @@ def query_finding(
         critic_prompt_tokens=agg_critic_prompt,
         critic_total_tokens=agg_critic_total,
         critic_skipped=all_critic_skipped,
-        total_tokens=agg_mapper_total + agg_critic_total,
+        cvss_prompt_tokens=cvss_tokens["prompt_tokens"],
+        cvss_total_tokens=cvss_tokens["total_tokens"],
+        total_tokens=agg_mapper_total + agg_critic_total + cvss_tokens["total_tokens"],
     )
 
     duration = time.time() - start
@@ -213,6 +239,7 @@ def query_finding(
 
     response = QueryResponse(
         finding_text=request.finding_text,
+        cvss=cvss_result,
         mappings=all_mappings,
         frameworks_searched=request.target_frameworks,
         chunks_retrieved=total_retrieved,

@@ -12,6 +12,7 @@ from src.retrieval.models import (  # noqa: F401
     QueryRequest,
     QueryResponse,
 )
+from src.scoring.models import CVSSResult  # noqa: F401
 
 
 class IngestionResponse(BaseModel):

@@ -4,10 +4,14 @@ Single-responsibility: defines data shapes that flow between pipeline stages.
 No business logic — only data containers and serialization.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 
 from pydantic import BaseModel, Field
+
+from src.scoring.models import CVSSResult  # noqa: F401 — used in QueryResponse
 
 
 # ── Internal dataclasses (used between pipeline stages) ──────────
@@ -98,9 +102,11 @@ class TokenUsage(BaseModel):
     critic_prompt_tokens: int = 0
     critic_total_tokens: int = 0
     critic_skipped: bool = False
+    cvss_prompt_tokens: int = 0
+    cvss_total_tokens: int = 0
     total_tokens: int = Field(
         default=0,
-        description="Sum of all tokens across mapper + critic calls",
+        description="Sum of all tokens across mapper + critic + cvss calls",
     )
 
 
@@ -108,6 +114,7 @@ class QueryResponse(BaseModel):
     """Full response from the retrieval pipeline."""
 
     finding_text: str
+    cvss: CVSSResult | None = Field(default=None, description="CVSS 3.1 base score assessment")
     mappings: list[ControlMapping] = Field(default_factory=list)
     frameworks_searched: list[str] = Field(default_factory=list)
     chunks_retrieved: int = 0

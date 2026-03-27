@@ -190,7 +190,6 @@ data:
   # ── Embedding ──────────────────────────────────────
   GRC_EMBEDDING__DIMENSION: "1536"
   GRC_EMBEDDING__BATCH_SIZE: "32"
-  GRC_EMBEDDING__TEI_URL: "http://localhost:8081"
   # ── Chunking ───────────────────────────────────────
   GRC_CHUNKING__SIZE: "256"
   GRC_CHUNKING__OVERLAP: "50"
