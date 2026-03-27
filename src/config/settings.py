@@ -30,7 +30,6 @@ class GeminiSettings(BaseModel):
 class EmbeddingSettings(BaseModel):
     dimension: int
     batch_size: int
-    tei_url: str
 
 
 class ChunkingSettings(BaseModel):
