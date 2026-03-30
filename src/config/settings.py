@@ -59,6 +59,20 @@ class RedisSettings(BaseModel):
     key_prefix: str
 
 
+class CveSettings(BaseModel):
+    """CVE identification and enrichment configuration."""
+
+    enabled: bool = True
+    nvd_api_key: str | None = None
+    nvd_base_url: str = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    nvd_timeout: float = 10.0
+    cve_org_base_url: str = "https://cveawg.mitre.org/api"
+    osv_base_url: str = "https://api.osv.dev"
+    max_cves_per_finding: int = 5
+    cache_ttl_hours: int = 24
+    llm_evaluation_threshold: int = 60
+
+
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="GRC_",
@@ -74,6 +88,7 @@ class AppSettings(BaseSettings):
     storage: StorageSettings
     retrieval: RetrievalSettings
     redis: RedisSettings
+    cve: CveSettings = CveSettings()
 
 
 @lru_cache

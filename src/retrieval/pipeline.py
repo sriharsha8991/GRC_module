@@ -28,7 +28,8 @@ from src.retrieval.normalizer import build_cache_key
 from src.retrieval.qdrant_retriever import QdrantRetriever
 from src.scoring.classifier import CVSSClassifier
 from src.scoring.engine import compute_cvss
-from src.scoring.models import CVSSResult
+from src.scoring.cve_pipeline import enrich_cves
+from src.scoring.models import CVSSResult, CveEnrichment
 
 logger = logging.getLogger("retrieval.pipeline")
 
@@ -181,6 +182,11 @@ def query_finding(
     all_critic_skipped = True
     cvss_result: CVSSResult | None = None
     cvss_tokens: dict = {"prompt_tokens": 0, "total_tokens": 0}
+    cve_enrichment: CveEnrichment | None = None
+    cve_tokens: dict = {
+        "classifier_prompt_tokens": 0, "classifier_total_tokens": 0,
+        "evaluator_prompt_tokens": 0, "evaluator_total_tokens": 0,
+    }
 
     def _classify_cvss() -> tuple[CVSSResult, dict]:
         """Run CVSS classification + scoring (parallel with mapper/critic)."""
@@ -188,10 +194,17 @@ def query_finding(
         result = compute_cvss(classification)
         return result, tokens
 
-    max_workers = min(len(search_results) + 1, 5)  # +1 for CVSS thread
+    def _enrich_cves() -> tuple[CveEnrichment, dict]:
+        """Run CVE enrichment pipeline (parallel with mapper/critic + CVSS)."""
+        return enrich_cves(request.finding_text, settings)
+
+    max_workers = min(len(search_results) + 2, 6)  # +1 CVSS, +1 CVE
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit CVSS classification in parallel
         cvss_future = executor.submit(_classify_cvss)
+
+        # Submit CVE enrichment in parallel
+        cve_future = executor.submit(_enrich_cves)
 
         # Submit per-framework mapper/critic
         future_to_key = {
@@ -218,6 +231,15 @@ def query_finding(
         except Exception:
             logger.exception("CVSS classification failed — response will have cvss=null")
 
+        # Collect CVE enrichment result
+        try:
+            cve_enrichment, cve_tokens = cve_future.result()
+            # Feed best CVE ID into CVSSResult if found
+            if cvss_result and cve_enrichment and cve_enrichment.cve_ids:
+                cvss_result.cve = cve_enrichment.cve_ids[0]
+        except Exception:
+            logger.exception("CVE enrichment failed — response will have cve_enrichment=null")
+
     # ── 4. Token aggregation ─────────────────────────
     token_usage = TokenUsage(
         mapper_prompt_tokens=agg_mapper_prompt,
@@ -227,7 +249,16 @@ def query_finding(
         critic_skipped=all_critic_skipped,
         cvss_prompt_tokens=cvss_tokens["prompt_tokens"],
         cvss_total_tokens=cvss_tokens["total_tokens"],
-        total_tokens=agg_mapper_total + agg_critic_total + cvss_tokens["total_tokens"],
+        cve_classifier_prompt_tokens=cve_tokens["classifier_prompt_tokens"],
+        cve_classifier_total_tokens=cve_tokens["classifier_total_tokens"],
+        cve_evaluator_prompt_tokens=cve_tokens["evaluator_prompt_tokens"],
+        cve_evaluator_total_tokens=cve_tokens["evaluator_total_tokens"],
+        total_tokens=(
+            agg_mapper_total + agg_critic_total
+            + cvss_tokens["total_tokens"]
+            + cve_tokens["classifier_total_tokens"]
+            + cve_tokens["evaluator_total_tokens"]
+        ),
     )
 
     duration = time.time() - start
@@ -240,6 +271,7 @@ def query_finding(
     response = QueryResponse(
         finding_text=request.finding_text,
         cvss=cvss_result,
+        cve_enrichment=cve_enrichment,
         mappings=all_mappings,
         frameworks_searched=request.target_frameworks,
         chunks_retrieved=total_retrieved,
