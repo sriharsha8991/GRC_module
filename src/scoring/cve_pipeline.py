@@ -1,17 +1,16 @@
-"""CVE pipeline — orchestrator composing classification → search → evaluation.
+"""CVE pipeline — orchestrator composing agent → details → evaluation.
 
 Single-responsibility: sequences the CVE enrichment stages in the correct
 order.  Each stage is delegated to its dedicated module.
 
 Flow:
-  1. Classify finding (3-class: PRODUCT_VULNERABILITY / WEAK_DEFAULT / PURE_MISCONFIGURATION)
+  1. Agent: Gemini function-calling agent classifies finding AND searches
+     CVE databases (NVD, OSV, VulDB) via tool use
   2. If PURE_MISCONFIGURATION → return immediately (cve_ids=null)
-  3. If PRODUCT_VULNERABILITY or WEAK_DEFAULT:
-     a. Short-circuit: explicit CVE IDs from text
-     b. API search: NVD CPE (using normalized cpe_vendor/cpe_product) + OSV.dev (parallel)
-     c. Fetch CVE details from cve.org (enrichment)
-     d. LLM evaluation judge (validate matches)
-     e. Filter to final CVE IDs
+  3. If 0 results → Google Search grounding fallback
+  4. Fetch full CVE details from cve.org/NVD (cap at 20)
+  5. LLM evaluation judge with full CVE context (batches of 5, parallel)
+  6. Return approved CVEs with details
 """
 
 from __future__ import annotations
@@ -21,12 +20,15 @@ import logging
 import time
 
 from src.config.settings import AppSettings
+from src.scoring.cve_agent import CveAgent
 from src.scoring.cve_evaluator import CveEvaluator
-from src.scoring.cve_searcher import CveSearcher
-from src.scoring.finding_classifier import FindingClassifier
-from src.scoring.models import CveEnrichment
+from src.scoring.google_search_fallback import search_cves_via_google
+from src.scoring.models import CveDetail, CveEnrichment, CveSearchResult
 
 logger = logging.getLogger("scoring.cve_pipeline")
+
+# Hard cap on candidates before detail fetch — prevents runaway API calls
+_MAX_CANDIDATES = 20
 
 
 def enrich_cves(
@@ -51,38 +53,13 @@ def enrich_cves(
         return CveEnrichment(
             finding_type="SKIPPED",
             classification_reasoning="CVE enrichment disabled in settings",
-        ), {"classifier_prompt_tokens": 0, "classifier_total_tokens": 0,
+        ), {"agent_prompt_tokens": 0, "agent_total_tokens": 0,
             "evaluator_prompt_tokens": 0, "evaluator_total_tokens": 0}
 
     start = time.time()
 
-    # ── Step 1: Classify finding ──────────────────────
-    classifier = FindingClassifier(settings)
-    classification, classifier_tokens = classifier.classify(finding_text)
-
-    tokens = {
-        "classifier_prompt_tokens": classifier_tokens["prompt_tokens"],
-        "classifier_total_tokens": classifier_tokens["total_tokens"],
-        "evaluator_prompt_tokens": 0,
-        "evaluator_total_tokens": 0,
-    }
-
-    # ── Step 2: Short-circuit for pure misconfigurations ───
-    if classification.finding_type == "PURE_MISCONFIGURATION":
-        duration = time.time() - start
-        logger.info("Pure misconfiguration — no CVE search needed (%.1fs)", duration)
-        return CveEnrichment(
-            finding_type="PURE_MISCONFIGURATION",
-            classification_reasoning=classification.reasoning,
-            cve_ids=None,
-            enrichment_duration_seconds=round(duration, 2),
-        ), tokens
-
-    # ── Step 3: CVE search + evaluation (PRODUCT_VULNERABILITY or WEAK_DEFAULT) ──
-    enrichment = asyncio.run(
-        _async_search_and_evaluate(
-            finding_text, classification, settings, tokens,
-        ),
+    enrichment, tokens = asyncio.run(
+        _async_agent_and_evaluate(finding_text, settings),
     )
     enrichment.enrichment_duration_seconds = round(time.time() - start, 2)
 
@@ -95,54 +72,140 @@ def enrich_cves(
     return enrichment, tokens
 
 
-async def _async_search_and_evaluate(
+async def _async_agent_and_evaluate(
     finding_text: str,
-    classification,
     settings: AppSettings,
-    tokens: dict,
-) -> CveEnrichment:
-    """Async portion: search for CVEs, fetch details, evaluate."""
+) -> tuple[CveEnrichment, dict]:
+    """Async portion: agent search → evaluate → fetch details."""
 
-    searcher = CveSearcher(settings.cve)
+    agent = CveAgent(settings)
 
-    # ── Search ────────────────────────────────────────
-    search_results, sources_queried = await searcher.search(classification)
+    # ── Step 1: Agent classifies + searches ───────────
+    agent_result = await agent.run(finding_text)
 
-    if not search_results:
-        logger.info("No CVE candidates found from any source")
+    tokens = {
+        "agent_prompt_tokens": agent_result.prompt_tokens,
+        "agent_total_tokens": agent_result.total_tokens,
+        "evaluator_prompt_tokens": 0,
+        "evaluator_total_tokens": 0,
+    }
+
+    # ── Step 2: Short-circuit for pure misconfigurations ───
+    if agent_result.finding_type == "PURE_MISCONFIGURATION":
+        logger.info("Pure misconfiguration — no CVE search needed")
         return CveEnrichment(
-            finding_type=classification.finding_type,
-            classification_reasoning=classification.reasoning,
-            software_component=classification.software_component,
-            vendor=classification.vendor,
-            version=classification.version,
-            cve_ids=[],
-            search_sources=sources_queried,
+            finding_type="PURE_MISCONFIGURATION",
+            classification_reasoning=agent_result.reasoning,
+            cve_ids=None,
+            search_sources=agent_result.sources_queried,
+        ), tokens
+
+    # ── Step 3: No results from agent — try Google Search fallback ──
+    if not agent_result.cve_results:
+        logger.info(
+            "No CVE candidates from database tools — "
+            "trying Google Search grounding fallback",
         )
+        google_results, g_prompt, g_total = await search_cves_via_google(
+            finding_text=finding_text,
+            software_component=agent_result.software_component,
+            vendor=agent_result.vendor,
+            version=agent_result.version,
+            api_key=settings.gemini.api_key,
+            model=settings.gemini.parse_model,
+        )
+        tokens["google_search_prompt_tokens"] = g_prompt
+        tokens["google_search_total_tokens"] = g_total
 
-    # ── Fetch details ─────────────────────────────────
-    cve_ids = [r.cve_id for r in search_results]
-    details = await searcher.fetch_details(cve_ids)
+        if google_results:
+            logger.info(
+                "Google Search fallback found %d CVE(s)",
+                len(google_results),
+            )
+            agent_result.cve_results = google_results
+            agent_result.sources_queried.append("GOOGLE_SEARCH")
+        else:
+            logger.info(
+                "Google Search fallback returned no CVEs either",
+            )
+            return CveEnrichment(
+                finding_type=agent_result.finding_type,
+                classification_reasoning=agent_result.reasoning,
+                software_component=agent_result.software_component,
+                vendor=agent_result.vendor,
+                version=agent_result.version,
+                cve_ids=[],
+                search_sources=agent_result.sources_queried
+                + ["GOOGLE_SEARCH"],
+            ), tokens
 
-    # ── Evaluate matches ──────────────────────────────
+    # ── Step 4: Fetch full CVE details BEFORE evaluation ──
+    # Cap candidates to prevent runaway API calls.
+    candidates = agent_result.cve_results[:_MAX_CANDIDATES]
+    logger.info(
+        "Fetching full details for %d CVE candidates", len(candidates),
+    )
+
+    details_map = await _fetch_all_details(candidates, agent)
+
+    # Build paired list: (search_result, detail_or_None)
+    candidate_pairs: list[tuple[CveSearchResult, CveDetail | None]] = [
+        (c, details_map.get(c.cve_id)) for c in candidates
+    ]
+
+    logger.info(
+        "Details fetched: %d/%d have full records",
+        sum(1 for _, d in candidate_pairs if d is not None),
+        len(candidate_pairs),
+    )
+
+    # ── Step 5: Evaluate matches (batches of 5, parallel) ──
     evaluator = CveEvaluator(settings)
-    eval_result, eval_tokens = evaluator.evaluate(finding_text, search_results)
+    eval_result, eval_tokens = evaluator.evaluate(
+        finding_text,
+        candidate_pairs,
+        software_component=agent_result.software_component,
+        vendor=agent_result.vendor,
+        version=agent_result.version,
+    )
 
     tokens["evaluator_prompt_tokens"] = eval_tokens["prompt_tokens"]
     tokens["evaluator_total_tokens"] = eval_tokens["total_tokens"]
 
-    # Filter details to only approved CVEs
-    approved_set = set(eval_result.final_cve_ids)
-    approved_details = [d for d in details if d.cve_id in approved_set]
+    # ── Step 6: Collect approved CVE details ──────────
+    max_cves = settings.cve.max_cves_per_finding
+    final_ids = (eval_result.final_cve_ids or [])[:max_cves]
+
+    approved_details = [
+        details_map[cve_id]
+        for cve_id in final_ids
+        if cve_id in details_map
+    ]
 
     return CveEnrichment(
-        finding_type=classification.finding_type,
-        classification_reasoning=classification.reasoning,
-        software_component=classification.software_component,
-        vendor=classification.vendor,
-        version=classification.version,
-        cve_ids=eval_result.final_cve_ids if eval_result.final_cve_ids else [],
+        finding_type=agent_result.finding_type,
+        classification_reasoning=agent_result.reasoning,
+        software_component=agent_result.software_component,
+        vendor=agent_result.vendor,
+        version=agent_result.version,
+        cve_ids=final_ids,
         cve_details=approved_details,
         evaluation_summary=eval_result.evaluations,
-        search_sources=sources_queried,
-    )
+        search_sources=agent_result.sources_queried,
+    ), tokens
+
+
+# ── Helpers ─────────────────────────────────────────────
+
+
+async def _fetch_all_details(
+    candidates: list[CveSearchResult],
+    agent: CveAgent,
+) -> dict[str, CveDetail]:
+    """Fetch full CVE details for all candidates in parallel.
+
+    Returns a dict mapping cve_id → CveDetail for successful fetches.
+    """
+    unique_ids = list(dict.fromkeys(c.cve_id for c in candidates))
+    details = await agent.fetch_details(unique_ids)
+    return {d.cve_id: d for d in details}

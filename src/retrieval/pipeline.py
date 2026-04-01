@@ -184,7 +184,7 @@ def query_finding(
     cvss_tokens: dict = {"prompt_tokens": 0, "total_tokens": 0}
     cve_enrichment: CveEnrichment | None = None
     cve_tokens: dict = {
-        "classifier_prompt_tokens": 0, "classifier_total_tokens": 0,
+        "agent_prompt_tokens": 0, "agent_total_tokens": 0,
         "evaluator_prompt_tokens": 0, "evaluator_total_tokens": 0,
     }
 
@@ -249,15 +249,18 @@ def query_finding(
         critic_skipped=all_critic_skipped,
         cvss_prompt_tokens=cvss_tokens["prompt_tokens"],
         cvss_total_tokens=cvss_tokens["total_tokens"],
-        cve_classifier_prompt_tokens=cve_tokens["classifier_prompt_tokens"],
-        cve_classifier_total_tokens=cve_tokens["classifier_total_tokens"],
+        cve_agent_prompt_tokens=cve_tokens["agent_prompt_tokens"],
+        cve_agent_total_tokens=cve_tokens["agent_total_tokens"],
         cve_evaluator_prompt_tokens=cve_tokens["evaluator_prompt_tokens"],
         cve_evaluator_total_tokens=cve_tokens["evaluator_total_tokens"],
+        cve_google_search_prompt_tokens=cve_tokens.get("google_search_prompt_tokens", 0),
+        cve_google_search_total_tokens=cve_tokens.get("google_search_total_tokens", 0),
         total_tokens=(
             agg_mapper_total + agg_critic_total
             + cvss_tokens["total_tokens"]
-            + cve_tokens["classifier_total_tokens"]
+            + cve_tokens["agent_total_tokens"]
             + cve_tokens["evaluator_total_tokens"]
+            + cve_tokens.get("google_search_total_tokens", 0)
         ),
     )
 

@@ -68,9 +68,10 @@ class CveSettings(BaseModel):
     nvd_timeout: float = 10.0
     cve_org_base_url: str = "https://cveawg.mitre.org/api"
     osv_base_url: str = "https://api.osv.dev"
-    max_cves_per_finding: int = 5
+    vuldb_api_key: str | None = None
+    max_cves_per_finding: int = 20
     cache_ttl_hours: int = 24
-    llm_evaluation_threshold: int = 60
+    llm_evaluation_threshold: int = 70
 
 
 class AppSettings(BaseSettings):

@@ -70,77 +70,12 @@ class CVSSResult(BaseModel):
 # ── CVE Enrichment models ───────────────────────────────
 
 
-class FindingClassification(BaseModel):
-    """LLM-generated classification of a security finding.
-
-    Three-class system:
-      PRODUCT_VULNERABILITY — flaw in a specific software component/version,
-                              CVE expected (e.g. buffer overflow in OpenSSL 1.1.1k).
-      WEAK_DEFAULT          — insecure default or bad practice shipped with a product,
-                              CVE may or may not exist (e.g. default admin creds in
-                              vendor appliance, TLS 1.0 still enabled by product).
-      PURE_MISCONFIGURATION — operational policy gap with no product-specific flaw,
-                              CVE not expected (e.g. MFA not enforced, no log review).
-
-    Used as the Gemini structured output schema.
-    """
-
-    finding_type: Literal[
-        "PRODUCT_VULNERABILITY", "WEAK_DEFAULT", "PURE_MISCONFIGURATION",
-    ] = Field(
-        description=(
-            "PRODUCT_VULNERABILITY if specific software flaw tied to a version; "
-            "WEAK_DEFAULT if insecure default/bad practice shipped with a product; "
-            "PURE_MISCONFIGURATION if operational policy gap with no product flaw"
-        ),
-    )
-    reasoning: str = Field(
-        description="2-3 sentence justification for the classification",
-    )
-    software_component: str | None = Field(
-        default=None,
-        description="Software name, e.g. 'Next.js', 'OpenSSL', 'Apache Tomcat'",
-    )
-    vendor: str | None = Field(
-        default=None,
-        description="Vendor/publisher, e.g. 'vercel', 'openssl', 'apache'",
-    )
-    version: str | None = Field(
-        default=None,
-        description="Specific version, e.g. '13.0.0', '1.1.1k'",
-    )
-    version_range: str | None = Field(
-        default=None,
-        description="Version range if mentioned, e.g. '>= 13.4.0, < 14.1.1'",
-    )
-    ecosystem: str | None = Field(
-        default=None,
-        description="Package ecosystem: 'npm', 'PyPI', 'Maven', 'Go', 'OS'",
-    )
-    named_vulnerability: str | None = Field(
-        default=None,
-        description="Named vulnerability if mentioned: 'Log4Shell', 'POODLE'",
-    )
-    explicit_cve_ids: list[str] = Field(
-        default_factory=list,
-        description="CVE IDs found verbatim in the finding text",
-    )
-    cpe_vendor: str | None = Field(
-        default=None,
-        description="CPE-normalized vendor, e.g. 'vercel', 'apache', 'openssl'",
-    )
-    cpe_product: str | None = Field(
-        default=None,
-        description="CPE-normalized product name, e.g. 'next.js', 'tomcat', 'openssl'",
-    )
-
-
 class CveSearchResult(BaseModel):
     """A CVE candidate returned from search."""
 
     cve_id: str = Field(description="CVE identifier, e.g. 'CVE-2024-34351'")
     source: str = Field(
-        description="Search source: EXPLICIT | NVD_CPE | NVD_KEYWORD | OSV",
+        description="Search source: NVD_CPE | NVD_KEYWORD | OSV | VULDB",
     )
     description: str = Field(default="", description="CVE summary from source")
     affected_product: str | None = Field(
@@ -155,11 +90,19 @@ class CveEvaluation(BaseModel):
     """LLM evaluation of a single CVE's relevance to the finding."""
 
     cve_id: str = Field(description="CVE being evaluated")
-    is_relevant: bool = Field(description="True if CVE matches the finding")
+    is_relevant: bool = Field(description="True ONLY if CVE has direct, verified relationship to the finding")
     relevance_score: int = Field(
-        ge=0, le=100, description="Confidence that CVE is correct match",
+        ge=0, le=100, description="Confidence score — must be >= 70 for approval",
     )
-    reasoning: str = Field(description="One-line justification")
+    reasoning: str = Field(
+        description=(
+            "Structured justification: "
+            "Product: [match/mismatch]. "
+            "Version: [in range/out of range/unclear] with range details. "
+            "Vuln type: [match/mismatch]. "
+            "Verdict: [approved/rejected]."
+        ),
+    )
 
 
 class CveEvaluationResult(BaseModel):

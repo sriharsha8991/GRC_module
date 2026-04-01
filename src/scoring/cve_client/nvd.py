@@ -39,7 +39,7 @@ class NvdClient:
         """Search NVD via virtualMatchString CPE match."""
         cpe = f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
         params = {"virtualMatchString": cpe, "resultsPerPage": 20}
-        return await self._search(params, source="NVD_CPE")
+        return await self._search(params, source="NVD_CPE", target_product=product)
 
     async def search_by_keyword(
         self, keywords: str, max_results: int = 10,
@@ -65,6 +65,7 @@ class NvdClient:
 
     async def _search(
         self, params: dict, source: str,
+        target_product: str | None = None,
     ) -> list[CveSearchResult]:
         async with create_client(self._timeout) as client:
             resp = await request_with_retry(
@@ -81,7 +82,9 @@ class NvdClient:
             cve = vuln.get("cve", {})
             cve_id = cve.get("id", "")
             desc = extract_english_description(cve.get("descriptions", []))
-            affected_product, affected_versions = _extract_affected(cve)
+            affected_product, affected_versions = _extract_affected(
+                cve, target_product=target_product,
+            )
             results.append(CveSearchResult(
                 cve_id=cve_id,
                 source=source,
@@ -126,8 +129,19 @@ class NvdClient:
 # ── NVD-specific parsing helpers ────────────────────────
 
 
-def _extract_affected(cve: dict) -> tuple[str | None, str | None]:
-    """Extract product and version range from NVD CPE configurations."""
+def _extract_affected(
+    cve: dict, target_product: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Extract product and version ranges from NVD CPE configurations.
+
+    When ``target_product`` is provided, only cpeMatch entries whose CPE
+    product field matches the target are included.  This filters out
+    unrelated products that share the same CVE (e.g. Tomcat versions
+    appearing in a Spring Framework CVE).
+    """
+    product_name: str | None = None
+    all_ranges: list[str] = []
+
     for config in cve.get("configurations", []):
         for node in config.get("nodes", []):
             for match in node.get("cpeMatch", []):
@@ -135,19 +149,44 @@ def _extract_affected(cve: dict) -> tuple[str | None, str | None]:
                     continue
                 criteria = match.get("criteria", "")
                 parts = criteria.split(":")
-                product = parts[4] if len(parts) > 4 else None
+                cpe_product = parts[4] if len(parts) > 4 else None
+
+                # Filter: skip entries for different products
+                if target_product and cpe_product:
+                    if cpe_product.lower() != target_product.lower():
+                        continue
+
+                if not product_name and cpe_product:
+                    product_name = cpe_product
+
                 v_start = match.get("versionStartIncluding", "")
                 v_end = match.get("versionEndExcluding", "")
                 v_end_inc = match.get("versionEndIncluding", "")
-                ranges: list[str] = []
+
+                range_parts: list[str] = []
                 if v_start:
-                    ranges.append(f">= {v_start}")
+                    range_parts.append(f">= {v_start}")
                 if v_end:
-                    ranges.append(f"< {v_end}")
+                    range_parts.append(f"< {v_end}")
                 elif v_end_inc:
-                    ranges.append(f"<= {v_end_inc}")
-                return product, ", ".join(ranges) if ranges else None
-    return None, None
+                    range_parts.append(f"<= {v_end_inc}")
+
+                if range_parts:
+                    all_ranges.append(", ".join(range_parts))
+                elif len(parts) > 5 and parts[5] not in ("*", "-"):
+                    all_ranges.append(parts[5])
+
+    # Deduplicate ranges while preserving order
+    seen: set[str] = set()
+    unique_ranges: list[str] = []
+    for r in all_ranges:
+        if r not in seen:
+            seen.add(r)
+            unique_ranges.append(r)
+
+    if not unique_ranges:
+        return product_name, None
+    return product_name, " | ".join(unique_ranges)
 
 
 def _extract_cvss(metrics: dict) -> tuple[str | None, float | None, str | None, str | None]:
