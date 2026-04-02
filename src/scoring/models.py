@@ -65,3 +65,107 @@ class CVSSResult(BaseModel):
     confidence: str = Field(description="High/Medium/Low")
     how_to_remediate: str = Field(description="Step-by-step remediation plan")
     metric_rationale: str = Field(description="One line per metric explaining the choice")
+
+
+# ── CVE Enrichment models ───────────────────────────────
+
+
+class CveSearchResult(BaseModel):
+    """A CVE candidate returned from search."""
+
+    cve_id: str = Field(description="CVE identifier, e.g. 'CVE-2024-34351'")
+    source: str = Field(
+        description="Search source: NVD_CPE | NVD_KEYWORD | OSV | VULDB",
+    )
+    description: str = Field(default="", description="CVE summary from source")
+    affected_product: str | None = Field(
+        default=None, description="Affected product name from CVE record",
+    )
+    affected_versions: str | None = Field(
+        default=None, description="Affected version range string",
+    )
+
+
+class CveEvaluation(BaseModel):
+    """LLM evaluation of a single CVE's relevance to the finding."""
+
+    cve_id: str = Field(description="CVE being evaluated")
+    is_relevant: bool = Field(description="True ONLY if CVE has direct, verified relationship to the finding")
+    relevance_score: int = Field(
+        ge=0, le=100, description="Confidence score — must be >= 70 for approval",
+    )
+    reasoning: str = Field(
+        description=(
+            "Structured justification: "
+            "Product: [match/mismatch]. "
+            "Version: [in range/out of range/unclear] with range details. "
+            "Vuln type: [match/mismatch]. "
+            "Verdict: [approved/rejected]."
+        ),
+    )
+
+
+class CveEvaluationResult(BaseModel):
+    """Aggregated result from LLM evaluation of all candidates."""
+
+    evaluations: list[CveEvaluation] = Field(default_factory=list)
+    final_cve_ids: list[str] = Field(
+        default_factory=list,
+        description="CVE IDs that passed evaluation (is_relevant=True, score >= threshold)",
+    )
+
+
+class CveDetail(BaseModel):
+    """Full enriched CVE record from NVD or cve.org."""
+
+    cve_id: str = Field(description="CVE identifier")
+    description: str = Field(description="Vulnerability description")
+    cvss_vector: str | None = Field(default=None, description="CVSS 3.1 vector string")
+    cvss_score: float | None = Field(default=None, ge=0.0, le=10.0)
+    cvss_severity: str | None = Field(
+        default=None, description="NONE | LOW | MEDIUM | HIGH | CRITICAL",
+    )
+    cvss_source: str | None = Field(
+        default=None, description="Who provided CVSS: NVD | CNA | CISA-ADP",
+    )
+    cwe_id: str | None = Field(default=None, description="CWE identifier, e.g. 'CWE-918'")
+    references: list[str] = Field(
+        default_factory=list, description="Up to 5 reference URLs",
+    )
+    published: str | None = Field(default=None, description="ISO 8601 publication date")
+    source: str = Field(description="Data fetch source: NVD | CVE_ORG")
+    kev: bool = Field(default=False, description="In CISA Known Exploited Vulnerabilities catalog")
+    ssvc_exploitation: str | None = Field(
+        default=None, description="SSVC exploitation status: none | poc | active",
+    )
+    ssvc_automatable: str | None = Field(
+        default=None, description="SSVC automatable: yes | no",
+    )
+    ssvc_technical_impact: str | None = Field(
+        default=None, description="SSVC technical impact: partial | total",
+    )
+
+
+class CveEnrichment(BaseModel):
+    """Complete CVE enrichment result for a finding."""
+
+    finding_type: str = Field(
+        description="PRODUCT_VULNERABILITY | WEAK_DEFAULT | PURE_MISCONFIGURATION",
+    )
+    classification_reasoning: str = Field(
+        default="", description="Why the finding was classified this way",
+    )
+    software_component: str | None = Field(default=None)
+    vendor: str | None = Field(default=None)
+    version: str | None = Field(default=None)
+    cve_ids: list[str] | None = Field(
+        default=None,
+        description="Matched CVE IDs — null for pure misconfigurations",
+    )
+    cve_details: list[CveDetail] = Field(default_factory=list)
+    evaluation_summary: list[CveEvaluation] = Field(default_factory=list)
+    search_sources: list[str] = Field(
+        default_factory=list,
+        description="Which sources were queried",
+    )
+    enrichment_duration_seconds: float = Field(default=0.0)

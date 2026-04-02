@@ -28,8 +28,8 @@ services:
         "--maxmemory-policy",
         "allkeys-lfu"
       ]
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s

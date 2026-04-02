@@ -8,7 +8,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from src.api.schemas import QueryRequest, QueryResponse
+from src.api.schemas import QueryRequest, QueryResponseAPI
 from src.config.registry import get_framework, list_framework_keys
 from src.retrieval.pipeline import query_finding
 
@@ -17,7 +17,7 @@ logger = logging.getLogger("api.query")
 router = APIRouter(prefix="/query", tags=["query"])
 
 
-@router.post("", response_model=QueryResponse)
+@router.post("", response_model=QueryResponseAPI)
 def query(request: QueryRequest):
     """Map a security finding to compliance framework controls.
 

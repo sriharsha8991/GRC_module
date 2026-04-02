@@ -23,3 +23,6 @@ redis>=5.0.0,<6.0.0
 fastapi>=0.135.0
 uvicorn>=0.41.0
 python-multipart>=0.0.6
+
+# Streamlit UI
+streamlit>=1.40.0

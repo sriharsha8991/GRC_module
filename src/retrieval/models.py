@@ -11,7 +11,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from src.scoring.models import CVSSResult  # noqa: F401 — used in QueryResponse
+from src.scoring.models import CVSSResult, CveEnrichment  # noqa: F401 — used in QueryResponse
 
 
 # ── Internal dataclasses (used between pipeline stages) ──────────
@@ -104,9 +104,15 @@ class TokenUsage(BaseModel):
     critic_skipped: bool = False
     cvss_prompt_tokens: int = 0
     cvss_total_tokens: int = 0
+    cve_agent_prompt_tokens: int = 0
+    cve_agent_total_tokens: int = 0
+    cve_evaluator_prompt_tokens: int = 0
+    cve_evaluator_total_tokens: int = 0
+    cve_google_search_prompt_tokens: int = 0
+    cve_google_search_total_tokens: int = 0
     total_tokens: int = Field(
         default=0,
-        description="Sum of all tokens across mapper + critic + cvss calls",
+        description="Sum of all tokens across mapper + critic + cvss + cve calls",
     )
 
 
@@ -115,6 +121,9 @@ class QueryResponse(BaseModel):
 
     finding_text: str
     cvss: CVSSResult | None = Field(default=None, description="CVSS 3.1 base score assessment")
+    cve_enrichment: CveEnrichment | None = Field(
+        default=None, description="CVE identification and enrichment results",
+    )
     mappings: list[ControlMapping] = Field(default_factory=list)
     frameworks_searched: list[str] = Field(default_factory=list)
     chunks_retrieved: int = 0
