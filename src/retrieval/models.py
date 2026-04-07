@@ -94,6 +94,17 @@ class QueryRequest(BaseModel):
     )
 
 
+class BusinessImpact(BaseModel):
+    """Holistic business impact assessment for a security finding."""
+
+    summary: str = Field(description="1-2 sentence executive summary of the business impact")
+    financial_risk: str = Field(description="Potential financial consequences: fines, breach costs, revenue loss")
+    operational_risk: str = Field(description="Operational disruption: downtime, service degradation, productivity loss")
+    reputational_risk: str = Field(description="Brand and customer trust damage")
+    regulatory_risk: str = Field(description="Compliance violation penalties, audit failures, legal exposure")
+    impact_severity: str = Field(description="Overall severity: CRITICAL / HIGH / MEDIUM / LOW")
+
+
 class TokenUsage(BaseModel):
     """Aggregated token usage across all Gemini calls in a single query."""
 
@@ -110,9 +121,11 @@ class TokenUsage(BaseModel):
     cve_evaluator_total_tokens: int = 0
     cve_google_search_prompt_tokens: int = 0
     cve_google_search_total_tokens: int = 0
+    impact_prompt_tokens: int = 0
+    impact_total_tokens: int = 0
     total_tokens: int = Field(
         default=0,
-        description="Sum of all tokens across mapper + critic + cvss + cve calls",
+        description="Sum of all tokens across mapper + critic + cvss + cve + impact calls",
     )
 
 
@@ -123,6 +136,9 @@ class QueryResponse(BaseModel):
     cvss: CVSSResult | None = Field(default=None, description="CVSS 3.1 base score assessment")
     cve_enrichment: CveEnrichment | None = Field(
         default=None, description="CVE identification and enrichment results",
+    )
+    business_impact: BusinessImpact | None = Field(
+        default=None, description="Holistic business impact assessment for the finding",
     )
     mappings: list[ControlMapping] = Field(default_factory=list)
     frameworks_searched: list[str] = Field(default_factory=list)

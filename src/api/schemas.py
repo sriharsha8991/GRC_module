@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 # Re-export retrieval models for use in route type hints
 from src.retrieval.models import (  # noqa: F401
+    BusinessImpact,
     ControlMapping,
     QueryRequest,
     TokenUsage,
@@ -47,6 +48,7 @@ class QueryResponseAPI(BaseModel):
     finding_text: str
     cvss: CVSSResult | None = None
     cve_enrichment: CveEnrichmentResponse | None = None
+    business_impact: BusinessImpact | None = None
     mappings: list[ControlMapping] = Field(default_factory=list)
     frameworks_searched: list[str] = Field(default_factory=list)
     chunks_retrieved: int = 0
