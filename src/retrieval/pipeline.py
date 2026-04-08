@@ -22,8 +22,9 @@ from src.config.settings import AppSettings, get_settings
 from src.ingestion.embedder import GeminiEmbedder
 from src.retrieval.cache import RedisCache
 from src.retrieval.critic import AdversarialCritic
+from src.retrieval.impact import BusinessImpactAnalyzer
 from src.retrieval.mapper import ComplianceMapper
-from src.retrieval.models import ControlMapping, QueryRequest, QueryResponse, ScoredChunk, TokenUsage
+from src.retrieval.models import BusinessImpact, ControlMapping, QueryRequest, QueryResponse, ScoredChunk, TokenUsage
 from src.retrieval.normalizer import build_cache_key
 from src.retrieval.qdrant_retriever import QdrantRetriever
 from src.scoring.classifier import CVSSClassifier
@@ -240,7 +241,22 @@ def query_finding(
         except Exception:
             logger.exception("CVE enrichment failed — response will have cve_enrichment=null")
 
-    # ── 4. Token aggregation ─────────────────────────
+    # ── 4. Business impact analysis (sequential — needs mapping context) ──
+    impact_result: BusinessImpact | None = None
+    impact_tokens: dict = {"prompt_tokens": 0, "total_tokens": 0}
+
+    if all_mappings:
+        try:
+            impact_analyzer = BusinessImpactAnalyzer(settings)
+            impact_result, impact_tokens = impact_analyzer.analyze(
+                finding=request.finding_text,
+                mappings=all_mappings,
+                cvss=cvss_result,
+            )
+        except Exception:
+            logger.exception("Business impact analysis failed — response will have business_impact=null")
+
+    # ── 5. Token aggregation ─────────────────────────
     token_usage = TokenUsage(
         mapper_prompt_tokens=agg_mapper_prompt,
         mapper_total_tokens=agg_mapper_total,
@@ -255,12 +271,15 @@ def query_finding(
         cve_evaluator_total_tokens=cve_tokens["evaluator_total_tokens"],
         cve_google_search_prompt_tokens=cve_tokens.get("google_search_prompt_tokens", 0),
         cve_google_search_total_tokens=cve_tokens.get("google_search_total_tokens", 0),
+        impact_prompt_tokens=impact_tokens["prompt_tokens"],
+        impact_total_tokens=impact_tokens["total_tokens"],
         total_tokens=(
             agg_mapper_total + agg_critic_total
             + cvss_tokens["total_tokens"]
             + cve_tokens["agent_total_tokens"]
             + cve_tokens["evaluator_total_tokens"]
             + cve_tokens.get("google_search_total_tokens", 0)
+            + impact_tokens["total_tokens"]
         ),
     )
 
@@ -275,6 +294,7 @@ def query_finding(
         finding_text=request.finding_text,
         cvss=cvss_result,
         cve_enrichment=cve_enrichment,
+        business_impact=impact_result,
         mappings=all_mappings,
         frameworks_searched=request.target_frameworks,
         chunks_retrieved=total_retrieved,

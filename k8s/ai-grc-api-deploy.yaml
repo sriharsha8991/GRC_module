@@ -1,49 +1,63 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grc-api
+  name: ai-grc-api
+  namespace: ai-components
   labels:
-    app.kubernetes.io/name: grc-api
+    app.kubernetes.io/name: ai-grc-api
     app.kubernetes.io/part-of: grc
     app.kubernetes.io/component: backend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: grc-api
+      app.kubernetes.io/name: ai-grc-api
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: grc-api
+        app.kubernetes.io/name: ai-grc-api
         app.kubernetes.io/part-of: grc
         app.kubernetes.io/component: backend
     spec:
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: harbor-secret
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
+        runAsUser: 10001
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-qdrant
           image: busybox:1.37
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
             - |
               until nc -z qdrant 6333; do
-                echo "waiting for qdrant..."
+                echo "waiting for external qdrant..."
                 sleep 2
               done
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
         - name: wait-for-redis
           image: busybox:1.37
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
@@ -54,17 +68,26 @@ spec:
               done
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
       containers:
-        - name: api
-          image: REGISTRY_PLACEHOLDER/grc-api:IMAGE_TAG
+        - name: ai-grc-api
+          image: harbor.local:8443/uat-images/ai-grc-api:latest
+          imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 10001
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
@@ -74,28 +97,37 @@ spec:
               containerPort: 8080
           envFrom:
             - configMapRef:
-                name: grc-api-config
+                name: ai-grc-api-config
             - secretRef:
-                name: grc-secrets
+                name: ai-grc-api-secret
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
           readinessProbe:
             httpGet:
               path: /health
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: http
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 15
             timeoutSeconds: 5
+         
           volumeMounts:
             - name: api-tmp
               mountPath: /tmp
             - name: api-data
               mountPath: /app/data
+            - name: tmp
+              mountPath: /cache
           resources:
             requests:
               cpu: 250m
@@ -108,3 +140,25 @@ spec:
           emptyDir: {}
         - name: api-data
           emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-grc-api-svc
+  namespace: ai-components
+  labels:
+    app.kubernetes.io/name: ai-grc-api
+    app.kubernetes.io/part-of: grc
+    app.kubernetes.io/component: backend
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: ai-grc-api
+  ports:
+    - name: http
+      port: 1122
+      targetPort: http
+      nodePort: 31122

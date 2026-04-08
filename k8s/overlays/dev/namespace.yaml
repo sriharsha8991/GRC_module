@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: grc-dev
-  labels:
-    app.kubernetes.io/part-of: grc
-    environment: dev
